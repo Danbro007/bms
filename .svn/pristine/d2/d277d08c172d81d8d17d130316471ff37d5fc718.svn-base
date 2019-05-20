@@ -1,0 +1,171 @@
+import json
+import os
+from django.shortcuts import render
+from .models import *
+from django.http import HttpResponse, JsonResponse
+from django.db import transaction
+from wechat.settings import UPLOADFILES_DIR
+from django.db.utils import IntegrityError
+import hashlib
+
+
+# Create your views here.
+def WechatList(req):
+    return render(req, "wechat/wechat-list.html")
+
+
+def WechatData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = ReplyMsg.objects.filter(keyword__contains=keyword).all().count()
+        reply_msg_list = ReplyMsg.objects.filter(keyword__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = ReplyMsg.objects.all().count()
+        reply_msg_list = ReplyMsg.objects.all()[(page - 1) * limit:page * limit]
+    reply_msg_data = []
+    for reply_msg in reply_msg_list:
+        reply_info = {
+            "id": reply_msg.id,
+            "keyword": reply_msg.keyword,
+            "type": reply_msg.type_list[int(reply_msg.type) - 1][1]
+        }
+        if reply_msg.type == 1:
+            reply_info["reply"] = reply_msg.msg
+        else:
+            reply_info["reply"] = os.path.split(reply_msg.filename)[1]
+        reply_msg_data.append(reply_info)
+    Replay_list = {"data": reply_msg_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(Replay_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def WechatAdd(req):
+    if req.method == "GET":
+        reply = ReplyMsg
+        chatrooms = Chatroom.objects.all()
+        return render(req, "wechat/wechat-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "回复消息添加成功"}
+        keyword = req.POST.get("keyword")
+        msg = req.POST.get("msg")
+        type = req.POST.get("type")
+        filename = req.POST.get("file_path")
+        if not keyword:
+            response["code"] = 402
+            response["msg"] = "请输入关键词"
+            return response
+        try:
+            with transaction.atomic():
+                if type == "1":
+                    if not msg:
+                        response["code"] = 403
+                        response["msg"] = "请输入回复语句"
+                    else:
+                        ReplyMsg.objects.create(keyword=keyword, msg=msg, type=type)
+                else:
+                    if filename:
+                        ReplyMsg.objects.create(keyword=keyword, type=type, filename=filename,
+                                                file_path=os.path.join(UPLOADFILES_DIR, filename_hash(filename)))
+                    else:
+                        response["code"] = 401
+                        response["msg"] = "请选择文件"
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "关键词已存在"
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def WechatEdit(req, id):
+    if req.method == "GET":
+        reply_msg = ReplyMsg.objects.get(id=id)
+        return render(req, "wechat/wechat-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "回复消息修改成功"}
+        keyword = req.POST.get("keyword")
+        msg = req.POST.get("msg")
+        type = req.POST.get("type")
+        filename = req.POST.get("file_path")
+        if not keyword:
+            response["code"] = 402
+            response["msg"] = "请输入关键词"
+            return response
+        reply_msg_obj = ReplyMsg.objects.get(id=id)
+        if type == "1":
+            if not msg:
+                response["code"] = 403
+                response["msg"] = "请输入回复语句"
+            else:
+                if reply_msg_obj.type != 1:
+                    os.remove(reply_msg_obj.file_path.name)
+                data = {"keyword": keyword, "msg": msg, "type": type, "file_path": "", "filename": ""}
+                reply_msg_obj.__dict__.update(**data)
+                reply_msg_obj.save()
+        else:
+            if filename:
+                if reply_msg_obj.type != 1:
+                    os.remove(reply_msg_obj.file.name)
+                data = {"keyword": keyword, "msg": "", "type": type,
+                        "file_path": os.path.join(UPLOADFILES_DIR, filename_hash(filename)), "filename": filename}
+                reply_msg_obj.__dict__.update(**data)
+                reply_msg_obj.save()
+            else:
+                response["code"] = 401
+                response["msg"] = "请选择上传文件"
+
+            # except Exception as e:
+            #     response["code"] = 500
+            #     response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def WechatDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "回复信息删除成功"}
+        msg_list = json.loads(req.POST.get("id"))
+        if not isinstance(msg_list, list):
+            msg_list = [msg_list, ]
+        for msg in msg_list:
+            try:
+                with transaction.atomic():
+                    reply_msg_obj = ReplyMsg.objects.get(id=msg)
+                    os.remove(reply_msg_obj.file_path.name)
+                    reply_msg_obj.delete()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def UploadFile(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "上传成功"}
+        uploadfile = req.FILES.get("file")
+        if not isfile_exist(uploadfile.name):
+            with open(os.path.join(UPLOADFILES_DIR, filename_hash(uploadfile.name)), "wb") as f:
+                for chunk in uploadfile.chunks():
+                    f.write(chunk)
+            response["filename"] = uploadfile.name
+        else:
+            response["code"] = 400
+            response["msg"] = "文件已存在"
+        return JsonResponse(response)
+
+
+def isfile_exist(filename):
+    if os.path.exists(os.path.join(UPLOADFILES_DIR, filename_hash(filename))):
+        return True
+    else:
+        return False
+
+
+def filename_hash(filename):
+    name, ext = filename.split(".")
+    m = hashlib.md5()
+    m.update(name.encode("utf-8"))
+    new_name = m.hexdigest()
+    return ".".join([new_name, ext])

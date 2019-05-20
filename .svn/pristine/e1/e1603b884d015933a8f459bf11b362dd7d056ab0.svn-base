@@ -1,0 +1,45 @@
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from bs_system.department.models import Department
+
+class Auth(models.Model):
+    app_name = (
+        ("1", "company"),
+        ("2", "position"),
+        ("3", "department"),
+    )
+    act_name = (
+        ("1", "list"),
+        ("2", "add"),
+        ("3", "delete"),
+        ("4", "edit"),
+    )
+    level_name = (
+        (1, "一级"),
+        (2, "二级")
+    )
+
+    menu_name = (
+        (0, "否"),
+        (1, "是")
+    )
+    public_name = (
+        (0, "否"),
+        (1, "是")
+    )
+    id = models.AutoField(primary_key=True)
+    parent = models.ForeignKey("self", to_field="id", on_delete=models.CASCADE, null=True, default="")
+    title = models.CharField(max_length=255, null=False)
+    is_public = models.BooleanField(default=0, choices=public_name)
+    is_menu = models.BooleanField(default=0, choices=menu_name)
+    level = models.IntegerField(default=2, choices=level_name)
+    app = models.CharField(default="", max_length=64, choices=app_name)
+    act = models.CharField(default="", max_length=64, choices=act_name)
+    # parameters = models.CharField(max_length=255, default="")
+    # sort = models.IntegerField(default=5)
+    add_time = models.DateTimeField(default=timezone.now())
+    modify_time = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "bs_system_auth"

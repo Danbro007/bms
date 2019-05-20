@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎页面-X-admin2.0</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport"
+          content="width=device-width,user-scalable=yes, minimum-scale=0.4, initial-scale=0.8,target-densitydpi=low-dpi"/>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/>
+    <link rel="stylesheet" href="/static/css/font.css">
+    <link rel="stylesheet" href="/static/css/xadmin.css">
+    <link rel="stylesheet" href="/static/lib/layui/css/modules/laydate/default/laydate.css">
+    <script type="text/javascript" src="/static/js/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/layui.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/js/xadmin.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/lay/modules/laydate.js"></script>
+    <!-- 让IE8/9支持媒体查询，从而兼容栅格 -->
+    <!--[if lt IE 9]>
+      <script src="https://cdn.staticfile.org/html5shiv/r29/html5.min.js"></script>
+      <script src="https://cdn.staticfile.org/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+<div class="x-body">
+    <div class="layui-form">
+        {% csrf_token %}
+        <div class="layui-form-item">
+            <label for="password" class="layui-form-label">
+                <span class="x-red">*</span>密码
+            </label>
+            <div class="layui-input-inline">
+                <input type="password" id="password" name="password"
+                       autocomplete="off" class="layui-input">
+            </div>
+            <div class="layui-form-mid layui-word-aux">
+                6到16个字符
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="sex" class="layui-form-label">
+                性别
+            </label>
+            <div class="layui-input-inline">
+                <select name="sex">
+                    <option value=""></option>
+                    {% for sex in account.sex_list %}
+                        {% if sex.0 == account.sex %}
+                            <option value="{{ sex.0 }}" selected>{{ sex.1 }}</option>
+                        {% else %}
+                            <option value="{{ sex.0 }}">{{ sex.1 }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="phone" class="layui-form-label">手机号码
+            </label>
+            <div class="layui-input-inline">
+                <input type="text" id="phone" name="phone" lay-verify=""
+                       autocomplete="off" class="layui-input" value="{{ account.phone }}">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="birthday" class="layui-form-label">生日
+            </label>
+            <div class="layui-input-inline">
+                <input type="text" class="layui-input" id="birthday" name="birthday" value="{{ account.birthday }}">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="level" class="layui-form-label">
+                等级
+            </label>
+            <div class="layui-input-inline">
+                <select name="level">
+                    {% for level in account.level_list %}
+                        {% if level.0 == account.level %}
+                            <option value="{{ level.0 }}" selected>{{ level.1 }}</option>
+                        {% else %}
+                            <option value="{{ level.0 }}">{{ level.1 }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="type" class="layui-form-label">
+                用户类型
+            </label>
+            <div class="layui-input-inline">
+                <select name="type">
+                    <option value="">选择用户类型</option>
+                    {% for type in account.type_list %}
+                        {% if type.0 == account.type %}
+                            <option value="{{ type.0 }}" selected>{{ type.1 }}</option>
+                        {% else %}
+                            <option value="{{ type.0 }}">{{ type.1 }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="company_id" class="layui-form-label">
+                公司
+            </label>
+            <div class="layui-input-inline">
+                <select name="company_id">
+                    <option value="">选择公司</option>
+                    {% for company in companies %}
+                        {% if company.id == account.company.id %}
+                            <option value="{{ company.id }}" selected>{{ company.name }}</option>
+                        {% else %}
+                            <option value="{{ company.id }}">{{ company.name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="department_id" class="layui-form-label">
+                部门
+            </label>
+            <div class="layui-input-inline">
+                <select name="department_id">
+                    {% for department in departments %}
+                        {% if department.id == account.department.id %}
+                            <option value="{{ department.id }}" selected>{{ department.name }}</option>
+                        {% else %}
+                            <option value="{{ department.id }}">{{ department.name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="position_id" class="layui-form-label">
+                职位
+            </label>
+            <div class="layui-input-inline">
+                <select name="position_id">
+                    <option value="">选择职位</option>
+                    {% for position in positions %}
+                        {% if position.id == account.position.id %}
+                            <option value="{{ position.id }}" selected>{{ position.name }}</option>
+                        {% else %}
+                            <option value="{{ position.id }}">{{ position.name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="L_email" class="layui-form-label">邮箱
+            </label>
+            <div class="layui-input-inline">
+                <input type="text" id="L_email" name="email" lay-verify=""
+                       autocomplete="off" class="layui-input" value="{{ account.email }}">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label"><span class="x-red">*</span>角色</label>
+            {% for role in roles %}
+                {% if role.id in account_role %}
+                    <input name="id[{{ role.id }}]" lay-skin="primary" type="checkbox"
+                           title={{ role.name }} value="{{ role.id }}" checked>
+                {% else %}
+                    <input name="id[{{ role.id }}]" lay-skin="primary" type="checkbox"
+                           title={{ role.name }} value="{{ role.id }}">
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="layui-form-item">
+            <button class="layui-btn" lay-submit lay-filter="edit">修改</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    layui.use(['form', 'layer', 'laydate'], function () {
+        $ = layui.jquery;
+        var form = layui.form,
+            laydate = layui.laydate
+            , layer = layui.layer;
+
+        //自定义验证规则
+        form.verify({
+            nikename: function (value) {
+                if (value.length < 5) {
+                    return '昵称至少得5个字符啊';
+                }
+            }
+            , pass: [/(.+){6,12}$/, '密码必须6到12位']
+            , repass: function (value) {
+                if ($('#L_pass').val() != $('#L_repass').val()) {
+                    return '两次密码不一致';
+                }
+            }
+        });
+
+        //时间控件laydate
+        laydate.render({
+            elem: '#birthday' //指定元素
+        });
+
+        //监听提交
+        form.on('submit(edit)', function (data) {
+            console.log(data.field);
+            $.ajax({
+                url: "/admin/admin/edit/{{ account.id }}/",
+                type: "post",
+                data: data.field,
+                success: function (response) {
+                    if (response.code == 200) {
+                        layer.alert(response.msg, {icon: 6}, function () {
+                            // 获得frame索引
+                            var index = parent.layer.getFrameIndex(window.name);
+                            //关闭当前frame
+                            parent.layer.close(index);
+                            window.parent.location.reload()
+                        });
+                    }
+                    else if (response.code == 500) {
+                        layer.alert(response.msg, {icon: 5}, function () {
+                            // 获得frame索引
+                            var index = parent.layer.getFrameIndex(window.name);
+                            //关闭当前frame
+                            parent.layer.close(index);
+                        });
+                    }
+                    else {
+                        layer.alert(response.msg, {icon: 5})
+                    }
+                }
+            })
+        });
+    });
+</script>
+</body>
+
+</html>

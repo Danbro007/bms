@@ -1,0 +1,130 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+
+
+# 部门
+def DepartmentList(req):
+    departments = Department.objects.filter(mark=1).all
+    return render(req, "admin/department/department-list.html", locals())
+
+
+def DepartmentAdd(req):
+    if req.method == "GET":
+        departments = Department.objects.filter(mark=1).all()
+        return render(req, "admin/department/department-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "部门添加成功"}
+        name = req.POST.get("name")
+        parent_department = req.POST.get("parent_department")
+        code = req.POST.get("code")
+        if Department.objects.filter(name=name).first():
+            response = {"code": 400, "msg": "部门名已存在"}
+        else:
+            try:
+                with transaction.atomic():
+                    if parent_department:
+                        parent = Department.objects.get(id=parent_department)
+                        name = "------".join([parent.name.rsplit("-", 1)[0], name])
+                    else:
+                        name = "|----" + name
+                    Department.objects.create(name=name, parent_id=parent_department, code=code)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def DepartmentData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Department.objects.filter(name__contains=keyword, mark=1).all().count()
+        departments = Department.objects.filter(mark=1, name__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = Department.objects.filter(mark=1).all().count()
+        departments = Department.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    departments_data = []
+    for department in departments:
+        department_info = {
+            "id": department.id,
+            "name": department.name,
+            "code": department.code,
+            "add_time": department.add_time.strftime('%Y-%m-%d'),
+        }
+        if department.parent is None:
+            department_info["parent"] = ""
+        else:
+            department_info["parent"] = department.parent.name
+        departments_data.append(department_info)
+    Department_List = {"data": departments_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(Department_List)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def DepartmentEdit(req, id):
+    """
+    部门编辑
+    :param req:
+    :param id:
+    :return:
+    """
+    if req.method == "GET":
+        department = Department.objects.get(id=id)
+        department.name = department.name.rsplit("-", 1)[1]
+        departments = Department.objects.exclude(id=id).all()
+        return render(req, "admin/department/department-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            data[k] = v
+        if not Department.objects.filter(id=id, mark=1).first():
+            response["code"] = 400
+            response["msg"] = "部门不存在"
+        else:
+            if Department.objects.filter(mark=1, name=data["name"]).exclude(id=id).first():
+                response["code"] = 401
+                response["msg"] = "部门名已存在"
+            else:
+                if data["parent_department"]:
+                    parent = Department.objects.get(id=data["parent_department"])
+                    data["name"] = "------".join([parent.name.rsplit("-", 1)[0], data["name"]])
+                else:
+                    data["name"] = "|----" + data["name"]
+            try:
+                with transaction.atomic():
+                    department_obj = Department.objects.get(id=id)
+                    department_obj.__dict__.update(**data)
+                    department_obj.save()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+    return JsonResponse(response)
+
+
+def DepartmentDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "部门删除成功"}
+        department_list = json.loads(req.POST.get("id"))
+        if not isinstance(department_list, list):
+            department_list = [department_list, ]
+        for department in department_list:
+            if Department.objects.filter(id=department, mark=1).first():
+                try:
+                    with transaction.atomic():
+                        Department.objects.filter(id=department).update(mark=0)
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+            else:
+                response["code"] = 400
+                response["msg"] = "此部门已被删除"
+        return JsonResponse(response)

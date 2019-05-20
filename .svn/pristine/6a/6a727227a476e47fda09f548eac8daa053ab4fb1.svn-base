@@ -1,0 +1,14 @@
+import os
+import hashlib
+a = "文件管理.zip"
+
+
+
+def filename_hash(filename):
+    name,ext = filename.split(".")
+    m = hashlib.md5()
+    m.update(name.encode("utf-8"))
+    new_name = m.hexdigest()
+    return ".".join([new_name,ext])
+
+print(filename_hash(a))

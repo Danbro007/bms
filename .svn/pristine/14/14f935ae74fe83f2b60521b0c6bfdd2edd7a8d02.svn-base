@@ -1,0 +1,130 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.db.utils import IntegrityError
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+def PositionList(req):
+    """
+    渲染职位列表
+    :param req:
+    :return:
+    """
+    return render(req, "admin/position/position-list.html")
+
+
+def PositionAdd(req):
+    """
+    职位添加
+    :param req:
+    :return:
+    """
+    if req.method == "GET":
+        level_list = Position.level_name
+        return render(req, "admin/position/position-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "职位添加成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken":
+                data[k] = v
+        try:
+            with transaction.atomic():
+                if Position.objects.filter(name=data["name"]):
+                    raise IntegrityError
+                Position.objects.create(**data)
+        except IntegrityError:
+            response["code"] = 401
+            response["msg"] = "职位名已存在"
+        except Exception:
+            response["code"] = 500
+            response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def PositionEdit(req, id):
+    """
+    职位编辑
+    :param req:
+    :param id: 职位id
+    :return:
+    """
+    if req.method == "GET":
+        position = Position.objects.get(id=id)
+        return render(req, "admin/position/position-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken":
+                data[k] = v
+        if not Position.objects.filter(id=id, mark=1):
+            response["code"] = 400
+            response["msg"] = "职位不存在"
+        else:
+            try:
+                with transaction.atomic():
+                    if Position.objects.filter(mark=1, name=data["name"]).exclude(id=id):
+                        raise IntegrityError
+                    position_obj = Position.objects.get(id=id)
+                    position_obj.__dict__.update(**data)
+                    position_obj.save()
+            except IntegrityError:
+                response["code"] = 401
+                response["msg"] = "职位名已存在"
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def PositionData(req):
+    """
+    :param req:
+    :return: 职位列表所需的数据
+    """
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Position.objects.filter(name__contains=keyword, mark=1).all().count()
+        positions = Position.objects.filter(mark=1, name__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = Position.objects.filter(mark=1).all().count()
+        positions = Position.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    positions_data = []
+    for position in positions:
+        position_info = {
+            "id": position.id,
+            "name": position.name,
+            "level_name": position.level_name[position.level - 1][1],
+            "add_time": position.add_time.strftime('%Y-%m-%d')
+        }
+        positions_data.append(position_info)
+    Position_list = {"data": positions_data, "msg": "", "code": 0, "count": count}
+    response_data = json.dumps(Position_list)
+    return HttpResponse(response_data, content_type="application/json", )
+
+
+def PositionDel(req):
+    """
+    职位删除（单个和多个）
+    :param req:
+    :return:
+    """
+    if req.method == "POST":
+        response = {"code": 200, "msg": "职位删除成功"}
+        position_list = json.loads(req.POST.get("id"))
+        if not isinstance(position_list, list):
+            position_list = [position_list, ]
+        try:
+            with transaction.atomic():
+                Position.objects.filter(id__in=position_list).update(mark=0)
+        except Exception:
+            response["code"] = 500
+            response["msg"] = "服务器出现错误"
+        return JsonResponse(response)

@@ -1,0 +1,38 @@
+import json
+
+from django.shortcuts import render
+from wechat_app.models import *
+from django.http import HttpResponse, JsonResponse
+
+
+# Create your views here.
+def ChatroomList(req):
+    return render(req, "wechat/chatroom/list.html")
+
+
+def ChatroomData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        chatroom_obj = Chatroom.objects.filter(nickname__contains=keyword)
+        print(chatroom_obj)
+        count = chatroom_obj.count()
+        chatroom_list = chatroom_obj.all()[(page - 1) * limit:page * limit]
+    else:
+        chatroom_obj = Chatroom.objects
+        count = chatroom_obj.count()
+        chatroom_list = chatroom_obj.all()[(page - 1) * limit:page * limit]
+    chatroom_data = []
+    for chatroom in chatroom_list:
+        chatroom_info = {
+            "id": chatroom.id,
+            "nickname": chatroom.nickname,
+            "start_time": "开始时间",
+            "end_time": "结束时间",
+            "remark": chatroom.remark
+        }
+        chatroom_data.append(chatroom_info)
+    Replay_list = {"data": chatroom_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(Replay_list)
+    return HttpResponse(rdata, content_type="application/json", )

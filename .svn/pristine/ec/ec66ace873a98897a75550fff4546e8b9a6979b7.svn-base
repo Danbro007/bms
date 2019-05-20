@@ -1,0 +1,25 @@
+import json,os
+import time, datetime
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
+from django.shortcuts import render
+from wechat_app.models import *
+from django.http import HttpResponse, JsonResponse
+from django.db.utils import IntegrityError
+from bs_system.module.adminManage.models import Account
+
+@csrf_exempt
+def WechatLogin(request):
+    if request.method == "GET":
+            return render(request,"wechat/wechat_login/login.html")
+    else:
+        action = request.POST.get("action")
+        if action == "login":
+            Account.objects.filter(is_superuser=True).update(wechat=True)
+        else:
+            Account.objects.filter(is_superuser=True).update(wechat=False)
+        return HttpResponse("ok")
+
+
+
+

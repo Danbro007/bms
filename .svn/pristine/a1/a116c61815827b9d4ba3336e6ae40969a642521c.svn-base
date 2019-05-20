@@ -1,0 +1,22 @@
+import json, os
+import time, datetime
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
+from django.shortcuts import render
+from wechat_app.models import *
+from django.http import HttpResponse, JsonResponse
+from django.db.utils import IntegrityError
+from bs_system.module.adminManage.models import Account
+import configparser
+from wechat.settings import *
+
+
+def WechatLogin(req):
+    if req.method == "GET":
+        return render(req, "wechat/wechat_login/login.html")
+
+
+def wecaht_login():
+    config = configparser.ConfigParser()
+    config.read(os.path.join(BASE_DIR, "itchat_part", "wechat.cfg"), encoding='utf-8')
+    return eval(config.get("status", "login"))

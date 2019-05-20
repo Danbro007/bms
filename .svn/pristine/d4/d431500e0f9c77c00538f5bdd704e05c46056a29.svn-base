@@ -1,0 +1,144 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+# 权限
+def RuleList(req):
+    if req.method == "GET":
+        return render(req, "admin/rule/rule-list.html", locals())
+
+
+def RuleAdd(req):
+    if req.method == "GET":
+        auths = Auth.objects.all()
+        return render(req, "admin/rule/rule-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "权限添加成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken":
+                data[k] = v
+        if data["parent_id"]:
+            data["level"] = 2
+        else:
+            data["level"] = 1
+            if data["act"]:
+                response["code"] = 401
+                response["msg"] = "顶级分类不能设立方法"
+                return JsonResponse(response)
+        if Auth.objects.filter(title=data["title"]).first():
+            response["code"] = 400
+            response["msg"] = "权限已存在"
+        else:
+            try:
+                with transaction.atomic():
+                    Auth.objects.create(**data)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def RuleData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    rule = req.GET.get("rule")
+    parent = req.GET.get("parent")
+    app = req.GET.get("app")
+    act = req.GET.get("act")
+    if any([rule, parent, app, act]):
+        search_dict = {}
+        if rule:
+            search_dict["title__contains"] = rule
+        if parent:
+            search_dict["parent__title__contains"] = parent
+        if app:
+            for item in Auth.app_name:
+                if app in item[1]:
+                    search_dict["app__contains"] = item[0]
+        if act:
+            for item in Auth.act_name:
+                if act in item[1]:
+                    search_dict["act__contains"] = item[0]
+        auths = Auth.objects.filter(**search_dict).all()[(page - 1) * limit:page * limit]
+        count = Auth.objects.filter(**search_dict).count()
+    else:
+        count = Auth.objects.all().count()
+        auths = Auth.objects.all()[(page - 1) * limit:page * limit]
+    auth_data = []
+    for auth in auths:
+        auth_info = {
+            "id": auth.id,
+            "title": auth.title,
+            "app": auth.app_name[int(auth.app) - 1][1],
+            "is_public": auth.is_public,
+            "is_menu": auth.is_menu,
+            "level": auth.level_name[int(auth.level) - 1][1]
+        }
+        if auth.parent is None:
+            auth_info["parent"] = ""
+        else:
+            auth_info["parent"] = auth.parent.title
+        if auth.act == "":
+            auth_info["act"] = auth.act
+        else:
+            auth_info["act"] = auth.act_name[int(auth.act) - 1][1]
+        auth_data.append(auth_info)
+    auth_list = {"data": auth_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(auth_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def RuleDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "权限删除成功"}
+        auth_list = json.loads(req.POST.get("id"))
+        if not isinstance(auth_list, list):
+            auth_list = [auth_list, ]
+        for auth in auth_list:
+            try:
+                with transaction.atomic():
+                    Auth.objects.filter(id=auth).delete()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def RuleEdit(req, id):
+    if req.method == "GET":
+        rule = Auth.objects.get(id=id)
+        auths = Auth.objects.exclude(id=id).all()
+        return render(req, "admin/rule/rule-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "权限编辑成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken":
+                data[k] = v
+        if data["parent_id"]:
+            data["level"] = 2
+        else:
+            data["level"] = 1
+            if data["act"]:
+                response["code"] = 401
+                response["msg"] = "顶级分类不能设立方法"
+                return JsonResponse(response)
+        if Auth.objects.filter(title=data["title"]).exclude(id=id).first():
+            response["code"] = 400
+            response["msg"] = "权限名已存在"
+        else:
+            try:
+                with transaction.atomic():
+                    rule_obj = Auth.objects.get(id=id)
+                    rule_obj.__dict__.update(**data)
+                    rule_obj.save()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现问题"
+        return JsonResponse(response)

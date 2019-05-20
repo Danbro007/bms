@@ -1,0 +1,15 @@
+import requests
+from django.views.decorators.csrf import csrf_exempt
+
+
+
+
+def get_post():
+    params = {"action": "login"}
+    res = requests.post("http://127.0.0.1:8000/wechat/login/", params=params)
+    print(res.status_code)
+    print(res.text)
+
+
+
+get_post()

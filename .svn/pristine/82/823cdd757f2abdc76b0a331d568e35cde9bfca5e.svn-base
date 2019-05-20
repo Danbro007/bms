@@ -1,0 +1,306 @@
+import json
+import requests
+from wechat.utils import *
+from bs4 import BeautifulSoup
+from wechat_part.settings import *
+from requests.exceptions import ConnectionError
+import os
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'wechat.settings'
+import django
+
+django.setup()
+from wechat_app.models import *
+from threading import Thread
+
+
+class Wechat:
+    def __init__(self):
+        self.headers = {'User-Agent': User_Agent}
+        self.user_init_info = {}
+        self.all_contacts = {}
+        self.users_contacts = {}
+        self.group_members = {}
+        self.public_accounts = {}
+        self.groups_list = {}
+        self.CTIME = None
+        self.Qcode = None
+        self.user_name = None
+        self.ticket_dict = {}
+        self.all_cookies = {}
+        self.tip = 1
+
+    def run(self):
+        print("wechat auto_reply starting...")
+        self.CTIME = int(time.time())
+        params = {
+            "appid": "wx782c26e4c19acffb",
+            "fun": " new",
+            "lang": "zh_CN",
+            "_": str(self.CTIME)
+        }
+        res = requests.get(Login_Url, params=params)
+        self.Qcode = re.findall('uuid = "(.*)";', res.text)[0]
+        qcode_pic = requests.get(Qcode_Url % self.Qcode).content
+        with open("qcode.jpg", "wb") as f:
+            f.write(qcode_pic)
+        show_qcode()
+        try:
+            while True:
+                response = self.check_login()
+                if response["code"] == 200:
+                    break
+        except IndexError:
+            self.run()
+        print("login successfully")
+        self.get_allcontact()
+        print("Getting wechat all contact and group info")
+        while True:
+            response = self.recivemsg()
+            if response["code"] == 200:  # 成功接收到个人消息
+                User = Member.objects.filter(member_username=response["toUser"]).values_list("member_username",
+                                                                                             "member_nickname").first()
+                if User[1] == "sqj":
+                    self.send_msg(toUser=User[0], msg="11")
+            elif response["code"] == 201:  # 群消息
+                group = Group.objects.filter(group_username=response["toUser"]).values_list("group_username",
+                                                                                            "group_name").first()
+                if group[1] == "超级客服群":
+                    self.send_msg(toUser=group[0], msg=response["msg"])
+
+    def check_login(self):
+        response = {"code": 408, "data": ""}
+        params = {
+            "loginicon": "true",
+            "uuid": self.Qcode,
+            "tip": self.tip,
+            "r": "1764458657",
+            "_": str(self.CTIME)
+        }
+        res = requests.get(CheckLogin_Url, params=params)
+        if "window.code=408;" in res.text:
+            print("waitting for scanning")
+        elif "window.code=201;" in res.text:
+            print("have scanned qcode logging...")
+            response["code"] = 201
+            avator = re.findall("userAvatar = '(.*)';", res.text)[0]
+            response["data"] = avator
+            self.tip = 0
+        elif "window.code=200;" in res.text:
+            response["code"] = 200
+            redict_url = re.findall('redirect_uri="(.*)";', res.text)[0] + "&fun=new&version=v2&lang=zh_CN"
+            res = requests.get(redict_url)
+            self.all_cookies.update(res.cookies.get_dict())
+            soup = BeautifulSoup(res.text, "html.parser")
+            for tag in soup.find("error").children:
+                self.ticket_dict[tag.name] = tag.get_text()
+        return response
+
+    def user_init(self):
+        self.CTIME = int(time.time())
+        params = {
+            "r": str(self.CTIME),
+            "pass_ticket": self.ticket_dict["pass_ticket"]
+        }
+        post_user_data = {
+            "BaseRequest":
+                {
+                    "DeviceID": "e822717214804786",
+                    "Sid": self.ticket_dict["wxsid"],
+                    "Skey": self.ticket_dict["skey"],
+                    "Uin": self.ticket_dict["wxuin"]
+                }
+        }
+        res = requests.post(url=WechatInit_Url, params=params, json=post_user_data)
+        res.encoding = "utf-8"
+        self.user_init_info.update(json.loads(res.text))
+        self.user_name = self.user_init_info["User"]["UserName"]  # 登录账号的用户的username
+
+    def get_allcontact(self):  # 获取全部联系人
+        self.user_init()
+        self.CTIME = int(time.time())
+        params = {
+            "pass_ticket": self.ticket_dict["pass_ticket"],
+            "r": str(self.CTIME),
+            "skey": self.ticket_dict["skey"]
+        }
+        res = requests.get(url=GetContact_URl, params=params, cookies=self.all_cookies)
+        res.encoding = "utf-8"
+        self.all_contacts = json.loads(res.text)  # 所有联系表（公众号，群信息，联系人）
+        for item in self.all_contacts["MemberList"]:  # 便利个人联系人、群、公众号
+            item["NickName"] = delete_tag(item["NickName"])  # 去除名字中的span标签
+            if item["AttrStatus"] != 0 and item["UserName"] != "weixin":  # 判断是否是个人微信号
+                if not Member.objects.filter(member_nickname=item["NickName"]):  # 不存在数据库中
+                    Member.objects.create(member_username=item["UserName"], member_nickname=item["NickName"])
+                else:
+                    Member.objects.filter(member_nickname=item["NickName"]).update(member_username=item["UserName"])
+            else:
+                if item["UserName"].startswith("@@"):  # 群信息
+                    if not Group.objects.filter(group_name=item["NickName"]):
+                        print("add new wechat group %s" % item["NickName"])
+                        Group.objects.create(group_name=item["NickName"], group_username=item["UserName"])
+                    else:
+                        Group.objects.filter(group_name=item["NickName"]).update(group_username=item["UserName"])
+                else:
+                    self.public_accounts[item["UserName"]] = item  # 添加到公众号字典中
+            # self.users_contacts[self.user_init_info["User"]["UserName"]] = self.user_init_info["User"]  # 添加本机用户到联系人字典
+        for group in Group.objects.all().values("group_username"):
+            t = Thread(target=self.get_groups_member, args=(group["group_username"],))
+            t.start()
+
+    def send_msg(self, msg, toUser):
+        self.CTIME = time.time()
+        params = {
+            "pass_ticket": self.ticket_dict["pass_ticket"]
+        }
+        msg_dict = {
+            "BaseRequest":
+                {
+                    "DeviceID": "e822717214804786",
+                    "Sid": self.ticket_dict["wxsid"],
+                    "Skey": self.ticket_dict["skey"],
+                    "Uin": self.ticket_dict["wxuin"]
+                },
+            "Msg":
+                {
+                    "ClientMsgId": self.CTIME,
+                    "Content": msg,
+                    "FromUserName": self.user_name,
+                    "LocalID": self.CTIME,
+                    "ToUserName": toUser,
+                    "Type": 1
+                },
+            "Scene": 0
+        }
+        res = requests.post(url=SendMsg_Url, params=params,
+                            data=bytes(json.dumps(msg_dict, ensure_ascii=False), encoding="utf-8"))
+
+    def recivemsg(self):
+        response = {"code": 300}
+        synckey = get_synckey(self.user_init_info["SyncKey"]["List"])
+        skey = self.ticket_dict["skey"].replace("@", "%40")
+        recive_params = {
+            "sid": self.ticket_dict["wxsid"],
+            "skey": self.ticket_dict["skey"],
+            "pass_ticket": self.ticket_dict["pass_ticket"]
+        }
+        sync_check__params = {
+            'r': int(time.time() * 1000),
+            'skey': skey,
+            'sid': self.ticket_dict["wxsid"],
+            'uin': self.ticket_dict["wxuin"],
+            'deviceid': "e822717214804786",
+            'synckey': synckey,
+            '_': int(time.time() * 1000)}
+        try:
+            res = requests.get(url=SyncCheck_Url, params=sync_check__params, headers=self.headers,
+                               cookies=self.all_cookies)
+        except ConnectionError:
+            print("连接中断,重连中。")
+            return response
+        recive_msg_dic = {
+            "BaseRequest":
+                {
+                    "DeviceID": "e822717214804786",
+                    "Sid": self.ticket_dict["wxsid"],
+                    "Skey": self.ticket_dict["skey"],
+                    "Uin": self.ticket_dict["wxuin"]
+                },
+            "SyncKey": self.user_init_info["SyncKey"]
+        }
+        retcode = re.findall('retcode:"(.*?)",', res.text)[0]
+        selector = re.findall('selector:"(.*?)"', res.text)[0]
+        if retcode == "0":
+            if selector == "2":
+                res = requests.post(ReciveMsg_Url, cookies=self.all_cookies, json=recive_msg_dic, headers=self.headers,
+                                    params=recive_params)
+                res.encoding = "utf-8"
+                recive_msg_info = json.loads(res.text)
+                self.user_init_info["SyncKey"] = recive_msg_info["SyncCheckKey"]
+                if recive_msg_info["AddMsgList"] != [] and recive_msg_info["AddMsgList"][0]["MsgType"] == 1:  # 文字类
+                    self.user_init_info["SyncKey"] = recive_msg_info["SyncKey"]
+                    SenderUserName = recive_msg_info["AddMsgList"][0]["FromUserName"]
+                    recive_time = recive_msg_info["AddMsgList"][0]["CreateTime"]
+                    content = recive_msg_info["AddMsgList"][0]["Content"]
+                    if content is not None and SenderUserName != self.user_name:
+                        group = Group.objects.filter(group_username=SenderUserName).values("group_name").first()
+                        member = Member.objects.filter(member_username=SenderUserName).values(
+                            "member_nickname").first()
+                        if group:  # 来自群信息
+                            res = re.findall("(.*):<br/>(.*)", content)[0]
+                            MemberUserName, GroupContent = res[0], res[1]  # 群成员UserName，信息内容
+                            member = Member.objects.filter(member_username=MemberUserName).values(
+                                "member_nickname").first()
+                            try:
+                                print("来自群：", group["group_name"])
+                                print("发送方：", member["member_nickname"])
+                                print("消息：", GroupContent)
+                                print("时间：", get_localtime(recive_time))
+                                response["group"] = group["group_name"]
+                                replay = ReplyMsg.objects.filter(keyword__contains=GroupContent).values_list(
+                                    "reply_msg").first()
+                                if replay:
+                                    response["msg"] = replay[0]
+                                else:
+                                    response["msg"] = "此语句不在数据库中"
+                                response["code"] = 201
+                                response["toUser"] = SenderUserName
+                            except TypeError:
+                                self.get_allcontact()
+                        elif member:  # 来自联系人的消息
+                            print("发送方：", member["member_nickname"])
+                            print("消息：", content)
+                            print("时间：", get_localtime(recive_time))
+                            response["code"] = 200
+                            response["toUser"] = SenderUserName
+                        else:
+                            print("來自陌生人的消息")
+                            print("消息：", content)
+                            print("时间：", get_localtime(recive_time))
+        return response
+
+    def get_groups_member(self, userName):
+        if not isinstance(userName, list):
+            userName = [userName]
+        params = {
+            "type": "ex",
+            "r": int(time.time() * 1000),
+        }
+        data = {
+            "BaseRequest":
+                {
+                    "DeviceID": "e822717214804786",
+                    "Sid": self.ticket_dict["wxsid"],
+                    "Skey": self.ticket_dict["skey"],
+                    "Uin": self.ticket_dict["wxuin"]
+                },
+            'Count': len(userName),
+            'List': [{
+                'UserName': u,
+                'ChatRoomId': '', } for u in userName], }
+        chatroomList = json.loads(
+            requests.post(url=GetGroupMember_Url, data=json.dumps(data), headers=self.headers, cookies=self.all_cookies,
+                          params=params).content.decode('utf8', 'replace')).get('ContactList')[0]
+        chatroomList["NickName"] = delete_tag(chatroomList["NickName"])
+        print("获取到微信群【%s】的成员信息" % chatroomList["NickName"])
+        group = Group.objects.filter(group_name=chatroomList["NickName"]).first()
+        for member in chatroomList["MemberList"]:
+            member["NickName"] = delete_tag(member["NickName"])
+            if not Member.objects.filter(member_nickname=member["NickName"]).first() and member[
+                "UserName"] != self.user_name:  # 不在数据库中
+                if member["DisplayName"]:
+                    member["DisplayName"] = delete_tag(member["DisplayName"])
+                    member_id = Member.objects.create(member_nickname=member["DisplayName"],
+                                                      member_username=member["UserName"])
+                    MemberToGroup.objects.create(group=group, member=member_id)
+                else:
+                    member_id = Member.objects.create(member_nickname=member["NickName"],
+                                                      member_username=member["UserName"])
+                    MemberToGroup.objects.create(group=group, member=member_id)
+            else:
+                Member.objects.filter(member_nickname=member["NickName"]).update(member_username=member["UserName"])
+
+
+if __name__ == '__main__':
+    wechat = Wechat()
+    wechat.run()

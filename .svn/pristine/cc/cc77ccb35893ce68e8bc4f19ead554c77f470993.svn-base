@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎页面-X-admin2.0</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport"
+          content="width=device-width,user-scalable=yes, minimum-scale=0.4, initial-scale=0.8,target-densitydpi=low-dpi"/>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/>
+    <link rel="stylesheet" href="/static/css/font.css">
+    <link rel="stylesheet" href="/static/css/xadmin.css">
+    <link rel="stylesheet" href="/static/lib/layui/css/modules/laydate/default/laydate.css">
+    <script type="text/javascript" src="/static/js/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/layui.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/js/xadmin.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/lay/modules/laydate.js"></script>
+
+    <!-- 让IE8/9支持媒体查询，从而兼容栅格 -->
+    <!--[if lt IE 9]>
+      <script src="https://cdn.staticfile.org/html5shiv/r29/html5.min.js"></script>
+      <script src="https://cdn.staticfile.org/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+<div class="x-body">
+    <div class="layui-form">
+        {% csrf_token %}
+        <div class="layui-form-item">
+            <label for="chatroom_id" class="layui-form-label">
+                <span class="x-red">*</span>微信群
+            </label>
+            <div class="layui-input-inline">
+                <select name="chatroom_id" lay-verify="required">
+                    <option value="">选择微信群</option>
+                    {% for chatroom in chatrooms %}
+                        <option value="{{ chatroom.id }}">{{ chatroom.nickname }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label for="push_time" class="layui-form-label">
+                 <span class="x-red">*</span>推送时间
+            </label>
+            <div class="layui-input-inline">
+                <input type="text" class="layui-input" id="push_time" name="push_time" lay-verify="required">
+            </div>
+        </div>
+        <div class="layui-form-item layui-form-text-form-item" id="content">
+            <label for="content" class="layui-form-label">
+                 <span class="x-red">*</span>推送内容
+            </label>
+            <div class="layui-input-block">
+                <textarea name="content" placeholder="请输入推送内容" class="layui-textarea" id="content" lay-verify="required"></textarea>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <button class="layui-btn" lay-submit lay-filter="add">增加</button>
+        </div>
+    </div>
+
+</div>
+
+
+<script>
+
+
+    layui.use(['form', 'layer', "upload", "laydate"], function () {
+        $ = layui.jquery;
+        var form = layui.form
+            , laydate = layui.laydate
+            , upload = layui.upload
+            , layer = layui.layer;
+
+        //自定义验证规则
+        form.verify({
+            nikename: function (value) {
+                if (value.length < 2) {
+                    return '昵称至少得2个字符啊';
+                }
+            }
+        });
+
+        laydate.render({
+            elem: '#push_time' //指定元素,
+            , type: 'time'
+
+        });
+        //监听提交
+        form.on('submit(add)', function (data) {
+            console.log(data.field);
+            $.ajax({
+                url: "/wechat/push/add/",
+                type: "post",
+                data: data.field,
+                success: function (response) {
+                    if (response.code == 200) {
+                        layer.alert(response.msg, {icon: 6}, function () {
+                            // 获得frame索引
+                            var index = parent.layer.getFrameIndex(window.name);
+                            //关闭当前frame
+                            parent.layer.close(index);
+                            window.parent.location.reload()
+                        });
+                    }
+                    else {
+                        layer.alert(response.msg, {icon: 5}, function () {
+                            // 获得frame索引
+                            var index = parent.layer.getFrameIndex(window.name);
+                            //关闭当前frame
+                            parent.layer.close(index);
+                        });
+                    }
+                }
+            })
+        });
+
+    })
+
+
+</script>
+
+</body>
+
+</html>

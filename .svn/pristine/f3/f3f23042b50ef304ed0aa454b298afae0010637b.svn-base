@@ -1,0 +1,10 @@
+from django.conf.urls import url,include
+from .import views
+urlpatterns = [
+    url(r'^add/', views.PositionAdd),
+    url(r'^list/', views.PositionList),
+    url(r'^del/', views.PositionDel),
+    url(r'^edit/(?P<id>\d+)/', views.PositionEdit),
+    url(r'^data/', views.PositionData),
+]
+

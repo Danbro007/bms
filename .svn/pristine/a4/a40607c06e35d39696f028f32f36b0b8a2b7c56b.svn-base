@@ -1,0 +1,60 @@
+from django.db import models
+from django.utils import timezone
+
+
+class User(models.Model):
+    nid = models.AutoField(primary_key=True)
+    username = models.CharField(max_length=32, null=False)
+    password = models.CharField(max_length=32, null=False)
+
+    def __str__(self):
+        return self.nid
+
+
+class Group(models.Model):
+    nid = models.AutoField(primary_key=True)
+    group_username = models.CharField(max_length=120, null=False)
+    group_name = models.CharField(max_length=120, null=True, default="未知群")
+
+    def __str__(self):
+        return str(self.nid)
+
+
+class Member(models.Model):
+    nid = models.AutoField(primary_key=True)
+    member_username = models.CharField(max_length=120, null=False)
+    member_nickname = models.CharField(max_length=120, null=False)
+
+    def __str__(self):
+        return str(self.nid)
+
+
+class MemberToGroup(models.Model):
+    nid = models.AutoField(primary_key=True)
+    group = models.ForeignKey(to="Group", to_field="nid", on_delete=models.CASCADE)
+    member = models.ForeignKey(to="Member", to_field="nid", on_delete=models.CASCADE)
+
+    def __str__(self):
+        return str(self.nid)
+
+
+class ReplyMsg(models.Model):
+    id = models.AutoField(primary_key=True)
+    application = models.ForeignKey(to="Application", to_field="nid", on_delete=models.CASCADE,null=True)
+    keyword = models.CharField(max_length=255, null=False)
+    reply_msg = models.CharField(max_length=255, null=False)
+    group = models.ForeignKey(to="Group", to_field="nid", on_delete=models.CASCADE, null=True)
+    attachment_url = models.FilePathField(null=True)
+
+    def __str__(self):
+        return str(self.nid)
+
+
+class Application(models.Model):
+    nid = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=255, null=False)
+    start_time = models.DateTimeField(default=timezone.now())
+    end_time = models.DateTimeField(default=timezone.now())
+    keyword_num = models.IntegerField()
+    applicant = models.CharField(max_length=255, null=False)
+    status = models.BooleanField(default=0)

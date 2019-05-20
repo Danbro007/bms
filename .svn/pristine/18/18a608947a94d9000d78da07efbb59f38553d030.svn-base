@@ -1,0 +1,92 @@
+import itchat
+from django.db.utils import IntegrityError
+from threading import Thread
+import os
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'wechat.settings'
+import django
+
+django.setup()
+from wechat_app.models import *
+
+
+def wechat_init():
+    print("start updating chatroom_info")
+    chatrooms = itchat.get_chatrooms(update=True)
+    MyNickName = itchat.get_friends(update=True)[0]["NickName"]
+    for chatroom in chatrooms:
+        update_chatroom(chatroom, MyNickName)
+        # t = Thread(target=update_chatroom, args=(chatroom, MyNickName))
+        print("updating chatroom【%s】info" % chatroom["NickName"])
+        # t.start()
+
+
+def update_chatroom(chatroom, MyNickName):
+    """
+    更新群信息和群成员
+    :param chatroom:
+    :param MyUserName:
+    :return:
+    """
+    if not Chatroom.objects.filter(nickname=chatroom["NickName"]):
+        chatroom_obj = Chatroom.objects.create(nickname=chatroom["NickName"])
+        members = itchat.update_chatroom(userName=chatroom["UserName"], detailedMember=True)
+        for member in members["MemberList"]:
+            if member["NickName"] != MyNickName:
+                member_obj = Member.objects.filter(nickname=member["NickName"]).values("id").first()
+                if not member_obj:
+                    member_obj = Member.objects.create(nickname=member["NickName"]).id
+                else:
+                    print("出现重复", member["NickName"])
+                    member_obj = member_obj["id"]
+                try:
+                    MemberToChatroom.objects.create(member_id=member_obj, chatroom=chatroom_obj)
+                except IntegrityError:
+                    pass
+
+
+@itchat.msg_register(itchat.content.TEXT, isGroupChat=True)
+def text_reply(msg):
+    print(msg.text)
+    try:
+        chatroom_nickname = msg["User"]["NickName"]
+        sender_nickname = \
+        [member["NickName"] for member in msg["User"]["MemberList"] if member["UserName"] == msg["ActualUserName"]][0]
+        keyword = msg.text
+        chatroom_obj = Chatroom.objects.filter(nickname=chatroom_nickname).values("id").first()
+        if not chatroom_obj:
+            chatroom_obj = Chatroom.objects.create(nickname=chatroom_nickname).id
+        else:
+            chatroom_obj = chatroom_obj["id"]
+        member_obj = Member.objects.filter(nickname=sender_nickname).values("id").first()
+        if not Member.objects.filter(nickname=sender_nickname):
+            member_obj = Member.objects.create(nickname=sender_nickname).id
+        else:
+            member_obj = member_obj["id"]
+        try:
+            MemberToChatroom.objects.create(member_id=member_obj, chatroom_id=chatroom_obj)
+        except IntegrityError:
+            pass
+        reply = ReplyToChatroom.objects.filter(reply__keyword__contains=keyword, chatroom_id=chatroom_obj).values(
+            "reply__type", "reply__filename", "reply__filepath", "reply__msg").first()
+        reply_nickname = "@" + sender_nickname
+        if reply["reply__type"] == 1:  # 文字信息
+            itchat.send_msg(toUserName=msg["FromUserName"], msg=reply_nickname + reply["reply__msg"])
+        elif reply["reply__type"] == 2:  # 图片
+            itchat.send_msg(toUserName=msg["FromUserName"], msg=reply_nickname)
+            itchat.send_image(toUserName=msg["FromUserName"], fileDir=reply["reply__filepath"])
+        elif reply["reply__type"] == 3:  # 文件
+            itchat.send_msg(toUserName=msg["FromUserName"], msg=reply_nickname + " 发送文件中，请稍等。")
+            itchat.send_file(toUserName=msg["FromUserName"], fileDir=reply["reply__filepath"])
+    except TypeError:
+        print("myuser send msg")
+
+
+def run():
+    itchat.auto_login(hotReload=True)
+    wechat_init()
+    itchat.run()
+
+
+if __name__ == '__main__':
+    run()

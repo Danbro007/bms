@@ -1,0 +1,130 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.db.utils import IntegrityError
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+def CompanyData(req):
+    """
+    公司列表的数据接口
+    :param req:
+    :return: 返回所有公司mark=1的数据
+    """
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        companies_all = Company.objects.filter(name__contains=keyword, mark=1).all()
+    else:
+        companies_all = Company.objects.filter(mark=1).all()
+    count = companies_all.count()
+    companies = companies_all[(page - 1) * limit:page * limit]
+    companies_data = []
+    for company in companies:
+        company_info = {
+            "id": company.id,
+            "name": company.name,
+            "addr": company.addr,
+            "en_name": company.en_name,
+            "tel": company.tel,
+            "email": company.email,
+            "add_time": company.add_time.strftime('%Y-%m-%d')
+        }
+        companies_data.append(company_info)
+    company_list = {"data": companies_data, "msg": "", "code": 0, "count": count}
+    response_data = json.dumps(company_list)
+    return HttpResponse(response_data, content_type="application/json", )
+
+
+def CompanyList(req):
+    """
+    公司列表页面渲染
+    :param req:
+    :return:
+    """
+    return render(req, "admin/company/company-list.html")
+
+
+def CompanyAdd(req):
+    """
+    公司添加
+    :param req:
+    :return:
+    """
+    if req.method == "GET":
+        return render(req, "admin/company/company-add.html")
+    else:
+        response = {"code": 200, "msg": "公司添加成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken" and v:
+                data[k] = v
+        try:
+            with transaction.atomic():
+                if Company.objects.filter(name=data["name"], mark=1):
+                    raise IntegrityError
+                Company.objects.create(**data)
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "公司名已存在"
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)
+
+
+def CompanyDel(req):
+    """
+    公司删除（多个和单个）
+    :param req:
+    :return:
+    """
+    if req.method == "POST":
+        response = {"code": 200, "msg": "公司删除成功"}
+        company_list = json.loads(req.POST.get("id"))
+        if not isinstance(company_list, list):
+            company_list = [company_list, ]
+        try:
+            with transaction.atomic():
+                Company.objects.filter(id__in=company_list).update(mark=0)
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)
+
+
+def CompanyEdit(req, id):
+    print(req.path)
+    """
+    公司信息编辑
+    :param req:
+    :param id: 公司id
+    :return:
+    """
+    if req.method == "GET":
+        company_info = Company.objects.get(id=id)
+        return render(req, "admin/company/company-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken" and v:
+                data[k] = v
+        try:
+            with transaction.atomic():
+                if Company.objects.filter(name=data["name"], mark=1).exclude(id=id):
+                    raise IntegrityError
+                company_obj = Company.objects.get(id=id)
+                company_obj.__dict__.update(**data)
+                company_obj.save()
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "公司名已存在"
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)

@@ -1,0 +1,11 @@
+from django.conf.urls import url, include
+
+urlpatterns = [
+    url(r'^company/', include("bs_system.company.urls")),
+    url(r'^position/', include("bs_system.position.urls")),
+    url(r'^department/', include("bs_system.department.urls")),
+    url(r'^role/', include("bs_system.role.urls")),
+    url(r'^rule/', include("bs_system.rule.urls")),
+    url(r'^admin/', include("bs_system.adminManage.urls")),
+
+]

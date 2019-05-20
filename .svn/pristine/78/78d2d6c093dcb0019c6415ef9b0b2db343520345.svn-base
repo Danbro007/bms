@@ -1,0 +1,75 @@
+import json
+from django.shortcuts import render
+from django.http import JsonResponse, HttpResponse
+from bs_system.role.models import Role
+from bs_system.position.models import Position
+from bs_system.company.models import Company
+from bs_system.department.models import Department
+from django.db import transaction
+from .models import Account, AccountRole
+
+
+def AdminList(req):
+    return render(req, "admin/admin/admin-list.html")
+
+
+def AdminAdd(req):
+    if req.method == "GET":
+        roles = Role.objects.all()
+        positions = Position.objects.all()
+        departments = Department.objects.all()
+        companies = Company.objects.all()
+        return render(req, "admin/admin/admin-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "用户添加成功"}
+        username = req.POST.get("username")
+        password = req.POST.get("password")
+        department = int(req.POST.get("department"))
+        position = int(req.POST.get("position"))
+        company = int(req.POST.get("company"))
+        obj = Account.objects.create_user(username=username, password=password,department__id=department, position__id=position,company__id=company )
+        # data = {}
+        # id_list = []
+        # for k, v in req.POST.items():
+        #     if k != "csrfmiddlewaretoken" and not k.startswith("id"):
+        #         data[k] = v
+        #     if k.startswith("id"):
+        #         id_list.append(v)
+        # if Account.objects.filter(username=data["username"]):
+        #     response["code"] = 400
+        #     response["msg"] = "用户名已存在"
+        # else:
+            # try:
+            #     with transaction.atomic():
+            # account_obj = Account.objects.create_user(**data)
+                    # for item in id_list:
+                    #     AccountRole.objects.create(role_id=item, account=account_obj)
+            # except Exception as e:
+            #     print(e)
+            #     response["code"] = 500
+            #     response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def AdminData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    count = Account.objects.filter(mark=1, is_superuser=0).count()
+    accounts = Account.objects.filter(mark=1, is_superuser=0)[(page - 1) * limit:page * limit]
+    roles_data = []
+    for account in accounts:
+        roles = AccountRole.objects.filter(account=account).values_list("role__name")
+        account_info = {
+            "id": account.id,
+            "username": account.username,
+            "company": account.company.name,
+            "department": account.department.name,
+            "position": account.position.name,
+            "role": [role[0] for role in roles],
+            "level": Account.level_list[int(account.level) - 1][1],
+            "add_time": account.add_time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        roles_data.append(account_info)
+    role_list = {"data": roles_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(role_list)
+    return HttpResponse(rdata, content_type="application/json")

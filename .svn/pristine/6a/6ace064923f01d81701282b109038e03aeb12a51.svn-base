@@ -1,0 +1,13 @@
+import os
+def get_permissions(module, app, act):
+    if act == "edit":
+        return "/".join(["/" + module, app, act, "(?P<id>\d+)/"])
+    else:
+        return "/".join(["/" + module, app, act])
+
+
+url = "admin/company"
+act = "delete"
+module, app = url.split("/")
+res = get_permissions(module, app=app, act=act)
+print(res)

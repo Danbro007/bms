@@ -1,0 +1,633 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+# 公司
+def CompanyData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Company.objects.filter(name__contains=keyword, mark=1).all().count()
+        companies = Company.objects.filter(mark=1, name__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = Company.objects.filter(mark=1).all().count()
+        companies = Company.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    companies_data = []
+    for company in companies:
+        company_info = {
+            "id": company.id,
+            "name": company.name,
+            "addr": company.addr,
+            "en_name": company.en_name,
+            "tel": company.tel,
+            "email": company.email,
+            "modify_time": company.modify_time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        companies_data.append(company_info)
+
+    company_list = {"data": companies_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(company_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def CompanyList(req):
+    return render(req, "admin/company/company-list.html")
+
+
+def CompanyAdd(req):
+    if req.method == "GET":
+        return render(req, "admin/company/company-add.html")
+    else:
+        response = {"code": 200, "msg": "公司添加成功"}
+        name = req.POST.get("name")
+        en_name = req.POST.get("en_name")
+        address = req.POST.get("address")
+        fax = req.POST.get("fax")
+        tel = req.POST.get("telphone")
+        mobile = req.POST.get("mobile")
+        email = req.POST.get("email")
+        if Company.objects.filter(name=name).first():
+            response = {"code": 400, "msg": "公司已存在"}
+        else:
+            try:
+                with transaction.atomic():
+                    Company.objects.create(name=name, en_name=en_name, addr=address, fax=fax, tel=tel, mobile=mobile,
+                                           email=email)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def CompanyDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "公司删除成功"}
+        company_list = json.loads(req.POST.get("id"))
+        if not isinstance(company_list, list):
+            company_list = [company_list, ]
+        for company in company_list:
+            if Company.objects.filter(id=company, mark=1).first():
+                try:
+                    with transaction.atomic():
+                        Company.objects.filter(id=company).update(mark=0)
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+
+            else:
+                response["code"] = 400
+                response["msg"] = "此公司已被删除"
+        return JsonResponse(response)
+
+
+def CompanyEdit(req, id):
+    if req.method == "GET":
+        company_info = Company.objects.filter(id=id).first()
+        return render(req, "admin/company/company-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            data[k] = v
+
+        if not Company.objects.filter(id=id, mark=1).first():
+            response["code"] = 400
+            response["msg"] = "公司不存在"
+        else:
+            if Company.objects.filter(mark=1, name=data["name"]).exclude(id=id).first():
+                response["code"] = 401
+                response["msg"] = "公司名已存在"
+            else:
+                try:
+                    with transaction.atomic():
+                        company_obj = Company.objects.get(id=id)
+                        company_obj.__dict__.update(**data)
+                        company_obj.save()
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+# 职位
+def PositionList(req):
+    return render(req, "admin/position/position-list.html")
+
+
+def PositionAdd(req):
+    if req.method == "GET":
+        return render(req, "admin/position/position-add.html")
+    else:
+        response = {"code": 200, "msg": "职位添加成功"}
+        name = req.POST.get("name")
+        level = req.POST.get("level")
+        if Position.objects.filter(name=name).first():
+            response = {"code": 400, "msg": "职位名已存在"}
+        else:
+            try:
+                with transaction.atomic():
+                    Position.objects.create(name=name, level=level)
+
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def PositionEdit(req, id):
+    if req.method == "GET":
+        position = Position.objects.get(id=id)
+        return render(req, "admin/position/position-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            data[k] = v
+        if not Position.objects.filter(id=id, mark=1).first():
+            response["code"] = 400
+            response["msg"] = "职位不存在"
+        else:
+            if Position.objects.filter(mark=1, name=data["name"]).exclude(id=id).first():
+                response["code"] = 401
+                response["msg"] = "职位名已存在"
+            else:
+                try:
+                    with transaction.atomic():
+                        position_obj = Position.objects.get(id=id)
+                        position_obj.__dict__.update(**data)
+                        position_obj.save()
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def PositionData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Position.objects.filter(name__contains=keyword, mark=1).all().count()
+        positions = Position.objects.filter(mark=1, name__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = Position.objects.filter(mark=1).all().count()
+        positions = Position.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    positions_data = []
+    for position in positions:
+        position_info = {
+            "id": position.id,
+            "name": position.name,
+            "level_name": position.level_name[position.level - 1][1],
+            "modify_time": position.modify_time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        positions_data.append(position_info)
+    Position_list = {"data": positions_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(Position_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def PositionDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "职位删除成功"}
+        position_list = json.loads(req.POST.get("id"))
+        if not isinstance(position_list, list):
+            position_list = [position_list, ]
+        for position in position_list:
+            if Position.objects.filter(id=position, mark=1).first():
+                try:
+                    with transaction.atomic():
+                        Position.objects.filter(id=position).update(mark=0)
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+            else:
+                response["code"] = 400
+                response["msg"] = "此职位已被删除"
+        return JsonResponse(response)
+
+
+# 部门
+def DepartmentList(req):
+    departments = Department.objects.filter(mark=1).all
+    return render(req, "admin/department/department-list.html", locals())
+
+
+def DepartmentAdd(req):
+    if req.method == "GET":
+        departments = Department.objects.filter(mark=1).all()
+        return render(req, "admin/department/department-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "部门添加成功"}
+        name = req.POST.get("name")
+        parent_department = req.POST.get("parent_department")
+        code = req.POST.get("code")
+        if Department.objects.filter(name=name).first():
+            response = {"code": 400, "msg": "部门名已存在"}
+        else:
+            try:
+                with transaction.atomic():
+                    if parent_department:
+                        parent = Department.objects.get(id=parent_department)
+                        name = "------".join([parent.name.rsplit("-", 1)[0], name])
+                    else:
+                        name = "|----" + name
+                    Department.objects.create(name=name, parent_id=parent_department, code=code)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def DepartmentData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Department.objects.filter(name__contains=keyword, mark=1).all().count()
+        departments = Department.objects.filter(mark=1, name__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = Department.objects.filter(mark=1).all().count()
+        departments = Department.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    departments_data = []
+    for department in departments:
+        department_info = {
+            "id": department.id,
+            "name": department.name,
+            "code": department.code,
+            "modify_time": department.modify_time.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        if department.parent is None:
+            department_info["parent"] = ""
+        else:
+            department_info["parent"] = department.parent.name
+        departments_data.append(department_info)
+    Department_List = {"data": departments_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(Department_List)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def DepartmentEdit(req, id):
+    """
+    部门编辑
+    :param req:
+    :param id:
+    :return:
+    """
+    if req.method == "GET":
+        department = Department.objects.get(id=id)
+        department.name = department.name.rsplit("-", 1)[1]
+        departments = Department.objects.exclude(id=id).all()
+        return render(req, "admin/department/department-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            data[k] = v
+        if not Department.objects.filter(id=id, mark=1).first():
+            response["code"] = 400
+            response["msg"] = "部门不存在"
+        else:
+            if Department.objects.filter(mark=1, name=data["name"]).exclude(id=id).first():
+                response["code"] = 401
+                response["msg"] = "部门名已存在"
+            else:
+                if data["parent_department"]:
+                    parent = Department.objects.get(id=data["parent_department"])
+                    data["name"] = "------".join([parent.name.rsplit("-", 1)[0], data["name"]])
+                else:
+                    data["name"] = "|----" + data["name"]
+            try:
+                with transaction.atomic():
+                    department_obj = Department.objects.get(id=id)
+                    department_obj.__dict__.update(**data)
+                    department_obj.save()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+    return JsonResponse(response)
+
+
+def DepartmentDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "部门删除成功"}
+        department_list = json.loads(req.POST.get("id"))
+        if not isinstance(department_list, list):
+            department_list = [department_list, ]
+        for department in department_list:
+            if Department.objects.filter(id=department, mark=1).first():
+                try:
+                    with transaction.atomic():
+                        Department.objects.filter(id=department).update(mark=0)
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+            else:
+                response["code"] = 400
+                response["msg"] = "此部门已被删除"
+        return JsonResponse(response)
+
+
+# 管理员
+def AdminList(req):
+    return render(req, "admin/admin/admin-list.html")
+
+
+def AdminAdd(req):
+    if req.method == "GET":
+        roles = Role
+        return render(req, "admin/admin/admin-add.html")
+
+
+# 权限
+def RuleList(req):
+    if req.method == "GET":
+        return render(req, "admin/rule/rule-list.html", locals())
+
+
+def RuleAdd(req):
+    if req.method == "GET":
+        auths = Auth.objects.all()
+        return render(req, "admin/rule/rule-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "权限添加成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken":
+                data[k] = v
+        if data["parent_id"]:
+            data["level"] = 2
+        else:
+            data["level"] = 1
+            if data["act"]:
+                response["code"] = 401
+                response["msg"] = "顶级分类不能设立方法"
+                return JsonResponse(response)
+        if Auth.objects.filter(title=data["title"]).first():
+            response["code"] = 400
+            response["msg"] = "权限已存在"
+        else:
+            try:
+                with transaction.atomic():
+                    Auth.objects.create(**data)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def RuleData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    rule = req.GET.get("rule")
+    parent = req.GET.get("parent")
+    app = req.GET.get("app")
+    act = req.GET.get("act")
+    if any([rule, parent, app, act]):
+        search_dict = {}
+        if rule:
+            search_dict["title__contains"] = rule
+        if parent:
+            search_dict["parent__title__contains"] = parent
+        if app:
+            for item in Auth.app_name:
+                if app in item[1]:
+                    search_dict["app__contains"] = item[0]
+        if act:
+            for item in Auth.act_name:
+                if act in item[1]:
+                    search_dict["act__contains"] = item[0]
+        auths = Auth.objects.filter(**search_dict).all()[(page - 1) * limit:page * limit]
+        count = Auth.objects.filter(**search_dict).count()
+    else:
+        count = Auth.objects.all().count()
+        auths = Auth.objects.all()[(page - 1) * limit:page * limit]
+    auth_data = []
+    for auth in auths:
+        auth_info = {
+            "id": auth.id,
+            "title": auth.title,
+            "app": auth.app_name[int(auth.app) - 1][1],
+            "is_public": auth.is_public,
+            "is_menu": auth.is_menu,
+            "level": auth.level_name[int(auth.level) - 1][1]
+        }
+        if auth.parent is None:
+            auth_info["parent"] = ""
+        else:
+            auth_info["parent"] = auth.parent.title
+        if auth.act == "":
+            auth_info["act"] = auth.act
+        else:
+            auth_info["act"] = auth.act_name[int(auth.act) - 1][1]
+        auth_data.append(auth_info)
+    auth_list = {"data": auth_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(auth_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def RuleDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "权限删除成功"}
+        auth_list = json.loads(req.POST.get("id"))
+        if not isinstance(auth_list, list):
+            auth_list = [auth_list, ]
+        for auth in auth_list:
+            try:
+                with transaction.atomic():
+                    Auth.objects.filter(id=auth).delete()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def RuleEdit(req, id):
+    if req.method == "GET":
+        rule = Auth.objects.get(id=id)
+        auths = Auth.objects.exclude(id=id).all()
+        return render(req, "admin/rule/rule-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "权限编辑成功"}
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken":
+                data[k] = v
+        if data["parent_id"]:
+            data["level"] = 2
+        else:
+            data["level"] = 1
+            if data["act"]:
+                response["code"] = 401
+                response["msg"] = "顶级分类不能设立方法"
+                return JsonResponse(response)
+        if Auth.objects.filter(title=data["title"]).exclude(id=id).first():
+            response["code"] = 400
+            response["msg"] = "权限名已存在"
+        else:
+            try:
+                with transaction.atomic():
+                    rule_obj = Auth.objects.get(id=id)
+                    rule_obj.__dict__.update(**data)
+                    rule_obj.save()
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现问题"
+        return JsonResponse(response)
+
+
+# 角色
+def RoleAdd(req):
+    """
+    角色添加
+    :param req:
+    :return:
+    """
+    if req.method == "GET":
+        auth_list = []
+        for parent in Auth.objects.filter(parent__id__isnull=True):
+            auth_dict = {}
+            auth_dict["parent"] = parent
+            auth_dict["child"] = Auth.objects.filter(parent__id=parent.id)
+            auth_list.append(auth_dict)
+        return render(req, "admin/role/role-add.html", {"auths": auth_list})
+    else:
+        response = {"code": 200, "msg": "角色创建成功"}
+        id_list = []
+        for k, v in req.POST.items():
+            if k.startswith("id"):
+                id_list.append(v)
+        name = req.POST.get("name")
+        desc = req.POST.get("desc")
+        level = req.POST.get("level")
+        if Role.objects.filter(name=name):
+            response["code"] = 400
+            response["msg"] = "角色名已存在"
+        else:
+            try:
+                with transaction.atomic():
+                    role_obj = Role.objects.create(name=name, desc=desc, level=level)
+                    for i in id_list:
+                        RoleAuth.objects.create(auth_id=i, role=role_obj)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def RoleData(req):
+    """
+    返回角色列表所需要的相关数据
+    :param req:
+    :return:
+    """
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Role.objects.filter(name__contains=keyword, mark=1).all().count()
+        roles = Role.objects.filter(name__contains=keyword, mark=1)[(page - 1) * limit:page * limit]
+    else:
+        count = Role.objects.filter(mark=1).count()
+        roles = Role.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    roles_data = []
+    for role in roles:
+        rules = RoleAuth.objects.filter(role=role).values_list("auth__title")
+        role_info = {
+            "id": role.id,
+            "name": role.name,
+            "desc": role.desc,
+            "rules": [rule[0] for rule in rules],
+            "is_active": role.is_active
+        }
+        roles_data.append(role_info)
+    role_list = {"data": roles_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(role_list)
+    return HttpResponse(rdata, content_type="application/json")
+
+
+def RoleList(req):
+    """
+    :param req:
+    :return: 渲染角色列表
+    """
+    return render(req, "admin/role/role-list.html")
+
+
+def RoleUpdateStatus(req):
+    """
+    角色启用状态更新
+    :param req:
+    :return:
+    """
+    if req.method == "POST":
+        response = {"code": 200, "msg": ""}
+        id = req.POST.get("id")
+        is_active = json.loads(req.POST.get("is_active"))
+        try:
+            with transaction.atomic():
+                Role.objects.filter(id=id).update(is_active=is_active)
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现问题"
+        return JsonResponse(response)
+
+
+def RoleDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "角色删除成功"}
+        role_list = json.loads(req.POST.get("id"))
+        if not isinstance(role_list, list):
+            role_list = [role_list, ]
+        for role in role_list:
+            try:
+                with transaction.atomic():
+                    Role.objects.filter(id=role).update(mark=0)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def RoleEdit(req, id):
+    if req.method == "GET":
+        auth_list = []
+        for parent in Auth.objects.filter(parent__id__isnull=True):
+            auth_dict = {}
+            auth_dict["parent"] = parent
+            auth_dict["child"] = Auth.objects.filter(parent__id=parent.id)
+            auth_list.append(auth_dict)
+        role = Role.objects.get(id=id)
+        RoleAuth.objects.filter()
+        rule_auth = [item["auth_id"] for item in RoleAuth.objects.filter(role=role).values("auth_id")]
+        return render(req, "admin/role/role-edit.html", {"auths": auth_list, "role": role, "role_auth": rule_auth})
+    else:
+        response = {"code": 200, "msg": "角色编辑成功"}
+        data = {}
+        role_list = []
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken" and not k.startswith("id"):
+                data[k] = v
+            elif k.startswith("id"):
+                role_list.append(v)
+        if Role.objects.filter(name=data["name"]).exclude(id=id).first():
+            response["code"] = 400
+            response["msg"] = "权限名已存在"
+        else:
+            try:
+                with transaction.atomic():
+                    role_obj = Role.objects.get(id=id)
+                    role_obj.__dict__.update(**data)
+                    role_obj.save()
+                    RoleAuth.objects.filter(role_id=id).delete()
+                    for role in role_list:
+                        RoleAuth.objects.create(auth_id=role, role_id=id)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现问题"
+        return JsonResponse(response)

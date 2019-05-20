@@ -1,0 +1,9 @@
+import configparser
+from wechat.settings import *
+
+
+def __wecaht_login():
+    config = configparser.ConfigParser()
+    config.read(os.path.join(BASE_DIR, "itchat_part", "wechat.cfg"), encoding='utf-8')
+    return eval(config.get("status", "login"))
+

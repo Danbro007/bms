@@ -1,0 +1,115 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+# 公司
+def CompanyData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Company.objects.filter(name__contains=keyword, mark=1).all().count()
+        companies = Company.objects.filter(mark=1, name__contains=keyword)[(page - 1) * limit:page * limit]
+    else:
+        count = Company.objects.filter(mark=1).all().count()
+        companies = Company.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    companies_data = []
+    for company in companies:
+        company_info = {
+            "id": company.id,
+            "name": company.name,
+            "addr": company.addr,
+            "en_name": company.en_name,
+            "tel": company.tel,
+            "email": company.email,
+            "modify_time": company.modify_time.strftime('%Y-%m-%d')
+        }
+        companies_data.append(company_info)
+
+    company_list = {"data": companies_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(company_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def CompanyList(req):
+    return render(req, "admin/company/company-list.html")
+
+
+def CompanyAdd(req):
+    if req.method == "GET":
+        return render(req, "admin/company/company-add.html")
+    else:
+        response = {"code": 200, "msg": "公司添加成功"}
+        name = req.POST.get("name")
+        en_name = req.POST.get("en_name")
+        address = req.POST.get("address")
+        fax = req.POST.get("fax")
+        tel = req.POST.get("telphone")
+        mobile = req.POST.get("mobile")
+        email = req.POST.get("email")
+        if Company.objects.filter(name=name).first():
+            response = {"code": 400, "msg": "公司已存在"}
+        else:
+            try:
+                with transaction.atomic():
+                    Company.objects.create(name=name, en_name=en_name, addr=address, fax=fax, tel=tel, mobile=mobile,
+                                           email=email)
+            except Exception as e:
+                response["code"] = 500
+                response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def CompanyDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "公司删除成功"}
+        company_list = json.loads(req.POST.get("id"))
+        if not isinstance(company_list, list):
+            company_list = [company_list, ]
+        for company in company_list:
+            if Company.objects.filter(id=company, mark=1).first():
+                try:
+                    with transaction.atomic():
+                        Company.objects.filter(id=company).update(mark=0)
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+
+            else:
+                response["code"] = 400
+                response["msg"] = "此公司已被删除"
+        return JsonResponse(response)
+
+
+def CompanyEdit(req, id):
+    if req.method == "GET":
+        company_info = Company.objects.filter(id=id).first()
+        return render(req, "admin/company/company-edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "修改成功"}
+        data = {}
+        for k, v in req.POST.items():
+            data[k] = v
+
+        if not Company.objects.filter(id=id, mark=1).first():
+            response["code"] = 400
+            response["msg"] = "公司不存在"
+        else:
+            if Company.objects.filter(mark=1, name=data["name"]).exclude(id=id).first():
+                response["code"] = 401
+                response["msg"] = "公司名已存在"
+            else:
+                try:
+                    with transaction.atomic():
+                        company_obj = Company.objects.get(id=id)
+                        company_obj.__dict__.update(**data)
+                        company_obj.save()
+                except Exception as e:
+                    response["code"] = 500
+                    response["msg"] = "服务器出现错误"
+        return JsonResponse(response)

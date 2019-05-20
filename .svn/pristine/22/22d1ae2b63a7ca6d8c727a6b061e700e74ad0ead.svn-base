@@ -1,0 +1,6 @@
+a = set([1,2])
+b = set([1])
+
+
+c = a & b
+print(c)

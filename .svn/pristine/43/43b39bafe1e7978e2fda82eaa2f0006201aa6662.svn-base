@@ -1,0 +1,43 @@
+import time
+from wxpy import *
+import os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'wechat.settings'
+import django
+django.setup()
+from wechat_app.models import *
+
+
+def run():
+    bot = Bot(cache_path=True)
+
+    @bot.register(Group)
+    def text_reply(msg):
+        chatroom_nickname = msg.sender.name  # 群名
+        keyword = msg.text  # 关键词
+        chatroom_obj = Chatroom.objects.filter(nickname=chatroom_nickname)
+        if chatroom_obj:
+            start_time = chatroom_obj.values("start_time").first()["start_time"]
+            end_time = chatroom_obj.values("end_time").first()["end_time"]
+            current_time = int(time.time())
+            if current_time in range(start_time, end_time):
+                reply = ReplyToChatroom.objects.filter(chatroom__nickname=chatroom_nickname,
+                                                       reply__keyword__contains=keyword).values("msg", "filepath",
+                                                                                                "reply__type").first()
+                if reply:
+                    reply_nickname = "@" + msg.member.name
+                    if reply["reply__type"] == 1:  # 文字信息
+                        msg.reply_msg(msg=reply_nickname + reply["msg"])
+                    elif reply["reply__type"] == 2:  # 图片
+                        msg.reply_msg(msg=reply_nickname)
+                        msg.reply_image(path=reply["filepath"])
+                    elif reply["reply__type"] == 3:  # 文件
+                        msg.reply_msg(msg=reply_nickname + " 发送文件中，请稍等。")
+                        msg.reply_file(path=reply["filepath"])
+            else:
+                print("not in time")
+
+    embed()
+
+
+if __name__ == '__main__':
+    run()

@@ -1,0 +1,8 @@
+
+
+from wechat_part.wechat import Wechat
+
+def run():
+    wechat = Wechat()
+    wechat.run()
+

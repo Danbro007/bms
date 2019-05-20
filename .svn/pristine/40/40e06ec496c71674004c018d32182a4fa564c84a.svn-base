@@ -1,0 +1,13 @@
+User_Agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36'
+
+ContentType = 'application/json; charset=UTF-8'
+
+Login_Url = "https://login.wx.qq.com/jslogin"
+Qcode_Url = "https://login.weixin.qq.com/qrcode/%s"
+CheckLogin_Url = "https://login.wx.qq.com/cgi-bin/mmwebwx-bin/login"
+WechatInit_Url = "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxinit"
+GetContact_URl = "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxgetcontact"
+ReciveMsg_Url = "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxsync"
+SyncCheck_Url = "https://webpush.wx.qq.com/cgi-bin/mmwebwx-bin/synccheck"
+GetGroupMember_Url = "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxbatchgetcontact?"
+SendMsg_Url = "https://wx.qq.com/cgi-bin/mmwebwx-bin/webwxsendmsg"

@@ -1,0 +1,51 @@
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from bs_system.module.company.models import Company
+from bs_system.module.position.models import Position
+from bs_system.module.department.models import Department
+from bs_system.module.role.models import Role
+
+
+class Account(AbstractUser):
+    sex_list = (
+        (1, "男"),
+        (2, "女")
+    )
+    type_list = (
+        (1, "前台用户"),
+        (2, "后台用户"),
+    )
+    level_list = (
+        (1, "高"),
+        (2, "中"),
+        (3, "低")
+    )
+    id = models.AutoField(primary_key=True)
+    phone = models.CharField(max_length=11, default="")
+    sex = models.IntegerField(default=1, choices=sex_list)
+    birthday = models.CharField(max_length=64, default="")
+    imageid = models.IntegerField(default=1)
+    type = models.IntegerField(default=1, choices=type_list)
+    company = models.ForeignKey(Company, null=True)
+    position = models.ForeignKey(Position, null=True)
+    department = models.ForeignKey(Department, null=True)
+    email = models.CharField(max_length=64, default="")
+    add_time = models.DateTimeField(default=timezone.now())
+    modify_time = models.DateTimeField(auto_now=True)
+    mark = models.BooleanField(default=1)
+    level = models.IntegerField(default=3, choices=level_list)
+    wechat = models.BooleanField(default=0)
+
+    class Meta:
+        db_table = "bs_account_account"
+
+
+class AccountRole(models.Model):
+    id = models.AutoField(primary_key=True)
+    account = models.ForeignKey(to="Account", to_field="id")
+    role = models.ForeignKey(Role)
+    add_time = models.DateTimeField(default=timezone.now())
+
+    class Meta:
+        db_table = "bs_account_account_role"

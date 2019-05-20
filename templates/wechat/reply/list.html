@@ -1,0 +1,192 @@
+﻿﻿﻿﻿
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎页面-X-admin2.0</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport"
+          content="width=device-width,user-scalable=yes, minimum-scale=0.4, initial-scale=0.8,target-densitydpi=low-dpi"/>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/>
+    <link rel="stylesheet" href="/static/css/font.css">
+    <link rel="stylesheet" href="/static/css/xadmin.css">
+    <script type="text/javascript" src="/static/js/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/layui.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/js/xadmin.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/lay/modules/laytpl.js"></script>
+    <!-- 让IE8/9支持媒体查询，从而兼容栅格 -->
+    <!--[if lt IE 9]>
+      <script src="https://cdn.staticfile.org/html5shiv/r29/html5.min.js"></script>
+      <script src="https://cdn.staticfile.org/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+
+
+<div class="x-nav">
+      <span class="layui-breadcrumb">
+        <a href="">首页</a>
+        <a href="">演示</a>
+        <a>
+          <cite>{{ chatroom.nickname }}</cite></a>
+      </span>
+</div>
+<div class="x-body">
+    <div class="layui-row">
+        <div class="layui-form layui-col-md12 x-so">
+            <div class="demoTable">
+                搜索语句：
+                <div class="layui-inline">
+                    <input class="layui-input" name="id" id="keyword" autocomplete="off">
+                </div>
+                <button class="layui-btn" data-type="reload">搜索</button>
+            </div>
+        </div>
+    </div>
+    <xblock>
+        <div class="layui-btn-group demoTable">
+            <button class="layui-btn layui-btn-danger" data-type="getCheckData">批量删除</button>
+        </div>
+        <button class="layui-btn" onclick="x_admin_show('添加回复消息','/wechat/reply/add/')"><i class="layui-icon"></i>添加
+        </button>
+    </xblock>
+    <table class="layui-table demoTable" lay-data="{height:500, url:'/wechat/reply/data/', page:true, id:'idTest'}"
+           lay-filter="demo">
+        <thead>
+        <tr>
+            <th lay-data="{type:'checkbox', fixed: 'left'}"></th>
+            <th lay-data="{type:'numbers', width:50}">序号</th>
+            <th lay-data="{field:'keyword', width:100}">关键字</th>
+            <th lay-data="{field:'type', width:100}">回复类型</th>
+            <th lay-data="{field:'reply', width:200}">回复内容</th>
+            <th lay-data="{field:'chatrooms', width:600}">关联群</th>
+            <th lay-data="{fixed: 'right', align:'center', toolbar: '#barDemo ',width:200}">操作</th>
+        </tr>
+        </thead>
+    </table>
+    <script type="text/html" id="barDemo">
+        <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+    </script>
+</div>
+<script>
+    layui.use('laydate', function () {
+        var laydate = layui.laydate;
+
+        //执行一个laydate实例
+        laydate.render({
+            elem: '#start' //指定元素
+        });
+
+        //执行一个laydate实例
+        laydate.render({
+            elem: '#end' //指定元素
+        });
+    });
+
+
+    function member_del(id) {
+        layer.confirm('确认要删除吗？', function (index) {
+            //发异步删除数据
+            $.ajax({
+                url: "/wechat/reply/del/",
+                type: "post",
+                data: {
+                    "id": id,
+                    "csrfmiddlewaretoken": "{{ csrf_token }}"
+                },
+                success: function (response) {
+                    if (response.code == 200) {
+                        layer.alert(response.msg, {icon: 6}, function () {
+                            window.location.reload()
+                        });
+                    }
+                    else {
+                        layer.alert(response.msg, {icon: 5})
+                    }
+                }
+            })
+        });
+    }
+
+    /*语句-批量删除*/
+    function delAll(data) {
+        layer.confirm('确认要删除吗？', function (index) {
+            $.ajax({
+                url: "/wechat/reply/del/",
+                type: "post",
+                dataType: "json",
+                traditional: true,
+                data: {
+                    "id": JSON.stringify(data),
+                    "csrfmiddlewaretoken": "{{ csrf_token }}"
+                },
+                success: function (response) {
+                    if (response.code == 200) {
+                        layer.alert(response.msg, {icon: 6}, function () {
+                            window.location.reload()
+                        });
+                    }
+                    else {
+                        layer.alert(response.msg, {icon: 5})
+                    }
+                }
+            })
+            //捉到所有被选中的，发异步进行删除
+            layer.msg('删除成功', {icon: 1});
+            $(".layui-form-checked").not('.header').parents('tr').remove();
+        });
+    }
+
+    layui.use('table', function () {
+        var table = layui.table;
+        var form = layui.form;
+        //监听表格复选框选择
+        table.on('checkbox(demo)', function (obj) {
+            console.log(obj)
+        });
+        //监听工具条
+        table.on('tool(demo)', function (obj) {
+            var data = obj.data;
+            console.log(data)
+            if (obj.event === 'del') {
+                member_del(data.id);
+            } else if (obj.event === 'edit') {
+                x_admin_show('编辑', '/wechat/reply/edit/' + data.id + "/")
+            }
+        });
+
+        var $ = layui.$, active = {
+            getCheckData: function () { //获取选中数据
+                var checkStatus = table.checkStatus('idTest')
+                    , data = checkStatus.data;
+                var id_list = new Array();
+                $.each(data, function (index, value) {
+                    id_list.push(value.id)
+                });
+                delAll(id_list)
+            },
+            reload: function () {
+                var keyword = $('#keyword');
+                table.reload('idTest', {
+                    where: {
+                        keyword: keyword.val()
+                    }
+                });
+            }
+        };
+
+        $('.demoTable .layui-btn').on('click', function () {
+            var type = $(this).data('type');
+            active[type] ? active[type].call(this) : '';
+        });
+    });
+
+
+
+</script>
+</body>
+
+</html>

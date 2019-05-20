@@ -1,0 +1,44 @@
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from bs_system.company.models import Company
+from bs_system.position.models import Position
+from bs_system.department.models import Department
+from bs_system.role.models import Role
+
+
+class Account(AbstractUser):
+    sex = (
+        (1, "男"),
+        (2, "女")
+    )
+    usertype = (
+        (1, "前台用户"),
+        (2, "后台用户"),
+    )
+    id = models.AutoField(primary_key=True)
+    phone = models.CharField(max_length=11, default="")
+    sex = models.IntegerField(default=1, choices=sex)
+    birthday = models.DateTimeField(auto_now_add=True)
+    imageid = models.IntegerField(default=1)
+    type = models.IntegerField(default=1, choices=usertype)
+    role = models.ForeignKey(Role, null=True, blank=True)
+    company = models.ForeignKey(Company, null=True, blank=True)
+    position = models.ForeignKey(Position, null=True, blank=True)
+    department = models.ForeignKey(Department, null=True, blank=True)
+    add_time = models.DateTimeField(default=timezone.now())
+    modify_time = models.DateTimeField(auto_now=True)
+    mark = models.BooleanField(default=1)
+
+    class Meta:
+        db_table = "bs_account_account"
+
+
+class AccountRole(models.Model):
+    id = models.AutoField(primary_key=True)
+    account = models.ForeignKey(to="Account", to_field="id")
+    role = models.ForeignKey(Role)
+    add_time = models.DateTimeField(default=timezone.now())
+
+    class Meta:
+        db_table = "bs_account_account_role"

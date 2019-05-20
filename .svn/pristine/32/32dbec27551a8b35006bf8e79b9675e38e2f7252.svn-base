@@ -1,0 +1,21 @@
+import json
+import time, datetime
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
+from django.shortcuts import render
+from wechat_app.models import *
+from django.http import HttpResponse, JsonResponse
+from django.db.utils import IntegrityError
+
+
+def WechatLogin(request):
+    if request.method == "GET":
+        return render(request,"wechat/wechat_login/login.html")
+
+
+def LoginStatus(req):
+    action = req.GET.get("action")
+    if action == "login":
+        req.session["login"] = "true"
+    return HttpResponse("ok")
+

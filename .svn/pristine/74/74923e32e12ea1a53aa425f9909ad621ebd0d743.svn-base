@@ -1,0 +1,82 @@
+import time
+from wxpy import *
+import os
+import requests
+import random
+import configparser
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'wechat.settings'
+import django
+
+django.setup()
+from wechat_app.models import *
+from wechat.settings import STATICFILES_DIRS, BASE_DIR
+
+
+def run():
+    bot = Bot(cache_path=True, qr_path=os.path.join(STATICFILES_DIRS[0], "QR.png"), login_callback=login_action,
+              logout_callback=logout_action)
+    friend = bot.friends().search("sqj")[0]
+    group = bot.groups().search("test")[0]
+
+    @bot.register(friend)
+    def friend_reply(msg):
+        apiUrl = 'http://www.tuling123.com/openapi/api'  # 改成你自己的图灵机器人的api，上图红框中的内容，不过用我的也无所谓，只是每天自动回复的消息条数有限
+        key_list = ["4d978143ace84d018eaaf11f035efbf8", "b4fe33543b5146d9b0710d8b8ee456c8",
+                    "3f0110fcd79e4e97b35b3f3b95cf00b8", "a5bd6d52107e481eaf8296dea5a342b0"]
+        data = {
+            'key': random.choice(key_list),  # Tuling Key
+            'info': msg.text,  # 这是我们发出去的消息
+            'userid': 'wechat-robot',  # 这里你想改什么都可以
+        }
+        # 我们通过如下命令发送一个post请求
+        r = requests.post(apiUrl, data=data).json()
+        print(r.get("text"))
+        msg.reply_msg(r.get("text"))
+
+    @bot.register(group)
+    def group_reply(msg):
+        chatroom_nickname = msg.sender.name  # 群名
+        keyword = msg.text  # 关键词
+        chatroom_obj = Chatroom.objects.filter(nickname=chatroom_nickname)
+        if chatroom_obj:
+            start_time = chatroom_obj.values("start_time").first()["start_time"]
+            end_time = chatroom_obj.values("end_time").first()["end_time"]
+            current_time = int(time.time())
+            if current_time in range(start_time, end_time):
+                reply = ReplyToChatroom.objects.filter(chatroom__nickname=chatroom_nickname,
+                                                       reply__keyword__contains=keyword).values("msg", "filepath",
+                                                                                                "reply__type").first()
+                if reply:
+                    reply_nickname = "@" + msg.member.name
+                    if reply["reply__type"] == 1:  # 文字信息
+                        msg.reply_msg(msg=reply_nickname + reply["msg"])
+                    elif reply["reply__type"] == 2:  # 图片
+                        msg.reply_msg(msg=reply_nickname)
+                        msg.reply_image(path=reply["filepath"])
+                    elif reply["reply__type"] == 3:  # 文件
+                        msg.reply_msg(msg=reply_nickname + " 发送文件中，请稍等。")
+                        msg.reply_file(path=reply["filepath"])
+            else:
+                print("not in time")
+
+    embed()
+
+
+def login_action():
+    os.remove(os.path.join(STATICFILES_DIRS[0], "QR.png"))
+    config = configparser.ConfigParser()
+    config.read(os.path.join(BASE_DIR, "itchat_part", "wechat.cfg"), encoding='utf-8')
+    config.set("status", "login", "True")
+    config.write(open(os.path.join(BASE_DIR, "itchat_part", "wechat.cfg"), "w"))
+
+
+def logout_action():
+    config = configparser.ConfigParser()
+    config.read(os.path.join(BASE_DIR, "itchat_part", "wechat.cfg"), encoding='utf-8')
+    config.set("status", "login", "False")
+    config.write(open(os.path.join(BASE_DIR, "itchat_part", "wechat.cfg"), "w"))
+
+
+if __name__ == '__main__':
+    run()

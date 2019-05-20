@@ -1,0 +1,175 @@
+import json
+from django.shortcuts import render, HttpResponse, redirect
+from django.http import JsonResponse
+from .models import *
+from django.db import transaction
+from django.db.utils import IntegrityError
+from django.contrib import auth
+from django.contrib.auth import models
+
+
+def RoleAdd(req):
+    """
+    角色添加
+    :param req:
+    :return:
+    """
+    if req.method == "GET":
+        auth_list = []
+        for parent in Auth.objects.filter(parent__id__isnull=True, mark=1):
+            auth_dict = {}
+            auth_dict["parent"] = parent
+            auth_dict["child"] = Auth.objects.filter(parent__id=parent.id, mark=1)
+            auth_list.append(auth_dict)
+        level_list = Role.level_name
+        return render(req, "admin/role/role-add.html", locals())
+    else:
+        response = {"code": 200, "msg": "角色创建成功"}
+        id_list = []
+        data = {}
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken" and not k.startswith("id"):
+                if v:
+                    data[k] = v
+            elif k.startswith("id"):
+                id_list.append(v)
+        try:
+            with transaction.atomic():
+                if Role.objects.filter(name=data["name"], mark=1):
+                    raise IntegrityError
+                role_obj = Role.objects.create(**data)
+                for i in id_list:
+                    RoleAuth.objects.create(auth_id=i, role=role_obj)
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "角色名已存在"
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)
+
+
+def RoleData(req):
+    """
+    返回角色列表所需要的相关数据
+    :param req:
+    :return:
+    """
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        count = Role.objects.filter(name__contains=keyword, mark=1).all().count()
+        roles = Role.objects.filter(name__contains=keyword, mark=1)[(page - 1) * limit:page * limit]
+    else:
+        count = Role.objects.filter(mark=1).count()
+        roles = Role.objects.filter(mark=1)[(page - 1) * limit:page * limit]
+    roles_data = []
+    for role in roles:
+        role_info = {
+            "id": role.id,
+            "name": role.name,
+            "desc": role.desc,
+            "rules": [rule[0] for rule in RoleAuth.objects.filter(role=role, mark=1).values_list("auth__title")],
+            "is_active": role.is_active
+        }
+        roles_data.append(role_info)
+    role_list = {"data": roles_data, "msg": "", "code": 0, "count": count}
+    response_data = json.dumps(role_list)
+    return HttpResponse(response_data, content_type="application/json")
+
+
+def RoleList(req):
+    """
+    :param req:
+    :return: 渲染角色列表
+    """
+    return render(req, "admin/role/role-list.html")
+
+
+def RoleUpdateStatus(req):
+    """
+    角色启用状态更新
+    :param req:
+    :return:
+    """
+    if req.method == "POST":
+        response = {"code": 200, "msg": ""}
+        id = req.POST.get("id")
+        is_active = json.loads(req.POST.get("is_active"))
+        try:
+            with transaction.atomic():
+                Role.objects.filter(id=id, mark=1).update(is_active=is_active)
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)
+
+
+def RoleDel(req):
+    """
+    角色删除
+    :param req:
+    :return:
+    """
+    if req.method == "POST":
+        response = {"code": 200, "msg": "角色删除成功"}
+        role_list = json.loads(req.POST.get("id"))
+        if not isinstance(role_list, list):
+            role_list = [role_list, ]
+        try:
+            with transaction.atomic():
+                Role.objects.filter(id__in=role_list).update(mark=0)
+                RoleAuth.objects.filter(role__id__in=role_list).update(mark=0)
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)
+
+
+def RoleEdit(req, id):
+    """
+    角色编辑
+    :param req:
+    :param id:
+    :return:
+    """
+    if req.method == "GET":
+        auth_list = []
+        for parent in Auth.objects.filter(parent__id__isnull=True):
+            auth_dict = {}
+            auth_dict["parent"] = parent
+            auth_dict["child"] = Auth.objects.filter(parent__id=parent.id)
+            auth_list.append(auth_dict)
+        role = Role.objects.get(id=id)
+        rule_auth = [item["auth_id"] for item in RoleAuth.objects.filter(role=role, mark=1).values("auth_id")]
+        return render(req, "admin/role/role-edit.html", {"auths": auth_list, "role": role, "role_auth": rule_auth})
+    else:
+        response = {"code": 200, "msg": "角色修改成功"}
+        data = {}
+        current_rule_list = []
+        for k, v in req.POST.items():
+            if k != "csrfmiddlewaretoken" and not k.startswith("id"):
+                if v:
+                    data[k] = v
+            elif k.startswith("id"):
+                current_rule_list.append(v)
+        last_rule_list = [item[0] for item in RoleAuth.objects.filter(role_id=id).values_list("auth_id")]
+        try:
+            with transaction.atomic():
+                if Role.objects.filter(name=data["name"], mark=1).exclude(id=id):
+                    raise IntegrityError
+                role_obj = Role.objects.get(id=id)
+                role_obj.__dict__.update(**data)
+                role_obj.save()
+                RoleAuth.objects.filter(role_id=id, auth__id__in=set(last_rule_list) - set(current_rule_list)).update(
+                    mark=0)
+                for rule in set(current_rule_list) - set(last_rule_list):
+                    RoleAuth.objects.create(auth_id=rule, role_id=id)
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "角色名已存在"
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现未知问题【%s】" % e
+        return JsonResponse(response)

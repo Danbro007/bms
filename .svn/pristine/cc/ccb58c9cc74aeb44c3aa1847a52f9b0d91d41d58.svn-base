@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎页面-X-admin2.0</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport"
+          content="width=device-width,user-scalable=yes, minimum-scale=0.4, initial-scale=0.8,target-densitydpi=low-dpi"/>
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/>
+    <link rel="stylesheet" href="/static/css/font.css">
+    <link rel="stylesheet" href="/static/css/xadmin.css">
+    <script type="text/javascript" src="/static/js/jquery.min.js"></script>
+    <script type="text/javascript" src="/static/lib/layui/layui.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/static/js/xadmin.js"></script>
+    <!-- 让IE8/9支持媒体查询，从而兼容栅格 -->
+    <!--[if lt IE 9]>
+      <script src="https://cdn.staticfile.org/html5shiv/r29/html5.min.js"></script>
+      <script src="https://cdn.staticfile.org/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+<div class="x-body">
+    <div class="layui-form layui-form-pane">
+        {% csrf_token %}
+        <div class="layui-form-item">
+            <label for="keyword" class="layui-form-label">
+                <span class="x-red">*</span>关键词
+            </label>
+            <div class="layui-input-inline">
+                <input type="text" id="keyword" name="keyword" required="" lay-verify="required"
+                       autocomplete="off" class="layui-input" value="{{ reply_msg.keyword }}">
+            </div>
+        </div>
+        <div class="layui-form-item layui-form-text">
+            <label class="layui-form-label">
+                关联微信群
+            </label>
+            <table class="layui-table layui-input-block">
+                <tbody>
+                <tr>
+                    <td>
+                        <div class="layui-input-block">
+                            {% for chatroom in chatrooms %}
+                                {% if chatroom.id in have_chatrooms %}
+                                    <input name="id[{{ chatroom.id }}]" lay-skin="primary" type="checkbox"
+                                           title={{ chatroom.nickname }} value="{{ chatroom.id }}" checked>
+                                {% else %}
+                                    <input name="id[{{ chatroom.id }}]" lay-skin="primary" type="checkbox"
+                                           title={{ chatroom.nickname }} value="{{ chatroom.id }}">
+                                {% endif %}
+                            {% endfor %}
+
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="selected" class="layui-form-item">
+            <label for="type" class="layui-form-label">回复类型</label>
+            <div class="layui-input-inline">
+                <select lay-filter="type" name="type">
+                    {% for type in reply_msg.type_list %}
+                        <option value="{{ type.0 }}">{{ type.1 }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="layui-form-item" id="reply_msg">
+            <label for="msg" class="layui-form-label">回复语句
+            </label>
+            <div class="layui-input-inline">
+                {% if reply_msg.msg %}
+                    <input type="text" id="msg" name="msg"
+                           autocomplete="off" class="layui-input" value="{{ reply_msg.msg }}">
+                {% else %}
+                    <input type="text" id="msg" name="msg"
+                           autocomplete="off" class="layui-input">
+                {% endif %}
+
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-inline">
+                <input type="hidden" id="file_path" name="file_path"
+                       autocomplete="off" class="layui-input" value="">
+            </div>
+        </div>
+        <div id="upload_pic" class="layui-form-item" style="display:none;">
+            <label class="layui-form-label">上传图片</label>
+            <div class="layui-input-inline">
+                <button type="button" class="layui-btn" id="upload_pic">
+                    <i class="layui-icon">&#xe67c;</i>上传
+                </button>
+                <div class="layui-upload-list">
+                    <img class="layui-upload-img" id="pic_preview" style="width: 100px;height: 100px">
+                    <p id="upload_pic_hint"></p>
+                </div>
+            </div>
+        </div>
+        <div id="upload_file" class="layui-form-item" style="display:none;">
+            <label class="layui-form-label">上传文件</label>
+            <div class="layui-input-inline">
+                <button type="button" class="layui-btn" id="upload_file">
+                    <i class="layui-icon">&#xe67c;</i>上传
+                </button>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <p id="filename" style="width: 200px;margin-bottom: 20px"></p>
+            <button class="layui-btn" lay-submit lay-filter="add">增加</button>
+        </div>
+    </div>
+
+</div>
+<script>
+
+
+    layui.use(['form', 'layer', "upload"], function () {
+        $ = layui.jquery;
+        var form = layui.form
+            , upload = layui.upload
+            , layer = layui.layer;
+
+        //自定义验证规则
+        form.verify({
+            nikename: function (value) {
+                if (value.length < 2) {
+                    return '昵称至少得2个字符啊';
+                }
+            }
+        });
+
+        //监听提交
+        form.on('submit(add)', function (data) {
+            $.ajax({
+                url: "/wechat/edit/{{ reply_msg.id }}/",
+                type: "post",
+                data: data.field,
+                success: function (response) {
+                    if (response.code == 200) {
+                        layer.alert(response.msg, {icon: 6}, function () {
+                            // 获得frame索引
+                            var index = parent.layer.getFrameIndex(window.name);
+                            //关闭当前frame
+                            parent.layer.close(index);
+                            window.parent.location.reload()
+                        });
+                    }
+                    else {
+                        layer.alert(response.msg, {icon: 5});
+                    }
+                }
+            })
+        });
+
+        form.on('select(type)', function (data) {
+
+            var value = data.value;
+            if (value == "" || value == "0") {
+                $("#upload_pic").hide();
+                $("#reply_msg").hide();
+                $("#upload_file").hide();
+            } else if (value == "1") {
+                $("#reply_msg").show();
+                $("#upload_pic").hide();
+                $("#upload_file").hide();
+            } else if (value == "2") {
+                $("#reply_msg").hide();
+                $("#upload_pic").show();
+                $("#upload_file").hide();
+            } else if (value == "3") {
+                $("#reply_msg").hide();
+                $("#upload_pic").hide();
+                $("#upload_file").show();
+            }
+        })
+
+        var upload_pic = upload.render({
+            elem: '#upload_pic'
+            , url: '/wechat/upload/'
+            , accept: 'images'
+            , acceptMime: 'image/*'
+            , data: {"csrfmiddlewaretoken": "{{ csrf_token }}"}
+            , before: function (obj) {
+                obj.preview(function (index, file, result) {
+                    $('#pic_preview').attr('src', result); //图片链接（base64）
+                });
+            }
+            , done: function (response) {
+                if (response.code == 200) {
+                    alert(response.msg);
+                    $("#file_path").val(response.filename);
+                    $("#filename").text(response.filename)
+                }
+                else {
+                    alert(response.msg)
+                }
+            }
+            , error: function () {
+                //演示失败状态，并实现重传
+                var pic_hint = $('#upload_pic_hint');
+                pic_hint.html('<span style="color: #FF5722;">上传失败</span> <a class="layui-btn layui-btn-xs pic-reload">重试</a>');
+                pic_hint.find('.pic-reload').on('click', function () {
+                    upload_pic.upload();
+                });
+            }
+        });
+
+
+        upload.render({
+            elem: '#upload_file'
+            , url: '/wechat/upload/'
+            , accept: 'file'
+            , data: {"csrfmiddlewaretoken": "{{ csrf_token }}"}
+            ,
+            done: function (response) {
+                if (response.code == 200) {
+                    alert(response.msg);
+                    $("#file_path").val(response.filename)
+                }
+                else {
+                    alert(response.msg)
+                }
+            }
+        });
+    })
+
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,148 @@
+from django.contrib.auth.models import AbstractUser
+from bs_system.department.models import Department
+
+# class AccountAccountInfo(models.Model):
+#     account_id = models.ForeignKey(to="Account_Account", to_field="id", on_delete=models.CASCADE)
+#     add_time = models.DateTimeField(auto_now_add=False)
+#     modify_time = models.DateTimeField(auto_now_add=True)
+#     mark = models.BooleanField(default=1)
+#
+#
+#
+
+#
+#
+# class Article(models.Model):
+#     title = models.CharField(max_length=255, default="")
+#     brief = models.TextField(blank=True, null=True)
+#     category_id = models.IntegerField(default=0)
+#     views = models.IntegerField(default=0)
+#     sort = models.IntegerField(default=0)
+#     imageurl = models.CharField(max_length=255, default="")
+#     filepath = models.CharField(max_length=255, default="")
+#     keywords = models.CharField(max_length=255, default="")
+#     istop = models.BooleanField(default=1)
+#     isrecommend = models.BooleanField(default=1)
+#     status = models.BooleanField(default=1)
+#     add_userid = models.IntegerField(default=0)
+#     add_time = models.DateTimeField(auto_now_add=False)
+#     modify_time = models.DateTimeField(auto_now_add=True)
+#     mark = models.BooleanField(default=1)
+#     store_id = models.IntegerField(blank=True, null=True)
+#
+#
+#
+# class ArticleCategory(models.Model):
+#     name = models.CharField(max_length=255, blank=True, null=True)
+#     parent_id = models.IntegerField(default=0)
+#     level = models.IntegerField(default=0)
+#     sort = models.IntegerField(default=1)
+#     is_enable = models.BooleanField(default=1)
+#     store_id = models.IntegerField(blank=True, null=True)
+#     add_time = models.DateTimeField(blank=True, null=True, auto_now_add=False)
+#     modify_time = models.DateTimeField(blank=True, null=True, auto_now_add=True)
+#
+# class ArticleDetail(models.Model):
+#     article_id = models.IntegerField(blank=True, null=True)
+#     content = models.TextField(blank=True, null=True)
+#     add_time = models.DateTimeField(blank=True, null=True, auto_now_add=False)
+#     modify_time = models.DateTimeField(blank=True, null=True, auto_now_add=True)
+#
+#
+#
+# class SystemAuth(models.Model):
+#     parent_id = models.IntegerField(default=0)
+#     title = models.CharField(max_length=255, default="")
+#     is_public = models.BooleanField(default=0)
+#     is_menu = models.BooleanField(default=0)
+#     level = models.IntegerField(default=1)
+#     app = models.CharField(max_length=255, default="")
+#     act = models.CharField(max_length=255, default="")
+#     parameters = models.CharField(max_length=255, default="")
+#     sort = models.IntegerField(default=5)
+#     add_time = models.DateTimeField(auto_now_add=False)
+#     modify_time = models.DateTimeField(auto_now_add=True)
+
+# class SystemCate(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     name = models.CharField(max_length=255, null=False)
+#     mark = models.BooleanField(default=1)
+
+
+#
+# class SystemController(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     name = models.CharField(max_length=255, null=False)
+
+# class SystemAuth(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     name = models.CharField(max_length=255, null=False)
+
+
+#
+# class SystemCity(models.Model):
+#     name = models.CharField(max_length=255, default="")
+#     code = models.CharField(max_length=255, default="")
+#     parent_id = models.IntegerField(default=0)
+#     sort = models.IntegerField(default=5)
+#     add_time = models.DateTimeField(auto_now_add=False)
+#     modify_time = models.DateTimeField(auto_now_add=True)
+#
+#
+
+
+#
+# #
+# class SystemDepartment(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     name = models.CharField(max_length=255, default="", verbose_name="部门名")
+#     parent_id = models.ForeignKey("self", to_field="id", on_delete=models.CASCADE, blank=True, null=True)
+#     code = models.CharField(max_length=255, default="", verbose_name="部门编码")
+#     add_time = models.DateTimeField(auto_now_add=False, verbose_name="添加时间")
+#     modify_time = models.DateTimeField(auto_now_add=True, verbose_name="修改时间")
+# mark = models.BooleanField(default=1)
+#
+#
+# class SystemLog(models.Model):
+#     id = models.BigAutoField(primary_key=True)
+#     auth_id = models.IntegerField(default=0)
+#     act = models.CharField(max_length=255,default="")
+#     ip = models.CharField(max_length=255, default="")
+#     request = models.TextField(blank=True, null=True)
+#     account_id = models.IntegerField(default=0)
+#     username = models.CharField(max_length=255, default="")
+#     note = models.TextField(blank=True, null=True)
+#     add_time = models.DateTimeField(auto_now_add=False)
+#
+#
+# class SystemRole(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     name = models.CharField(max_length=255, default="")
+#     desc = models.CharField(max_length=255, default="")
+# level = models.IntegerField(default=3)
+# sort = models.IntegerField(default=5)
+# add_time = models.DateTimeField(default=timezone.now())
+# modify_time = models.DateTimeField(auto_now=True)
+# mark = models.BooleanField(default=1)
+# is_active = models.BooleanField(default=1)
+# operate_id = models.IntegerField(default=0)
+
+
+# class SystemRoleAuth(models.Model):
+#     role = models.ForeignKey(to="SystemRole", to_field="id")
+#     auth = models.ForeignKey(to="SystemAuth", to_field="id")
+#     add_time = models.DateTimeField(default=timezone.now())
+#
+#
+# class UserUser(models.Model):
+#     username = models.CharField(max_length=255)
+#     password = models.CharField(max_length=255)
+#     header_url = models.CharField(max_length=255, blank=True, null=True)
+#     phone = models.BigIntegerField(blank=True, null=True)
+#     email = models.CharField(max_length=255, blank=True, null=True)
+#     sex = models.CharField(max_length=2, default="未知")
+#     integral = models.IntegerField(default=0)
+#     address = models.CharField(max_length=255, default="")
+#     add_time = models.DateTimeField(blank=True, null=True, auto_now_add=False)
+#     modify_time = models.DateTimeField(blank=True, null=True, auto_now_add=True)
+#     mark = models.BooleanField(default=1)

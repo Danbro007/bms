@@ -1,0 +1,116 @@
+import json
+import time, datetime
+
+from django.db import transaction
+from django.shortcuts import render
+from wechat_app.models import *
+from django.http import HttpResponse, JsonResponse
+from django.db.utils import IntegrityError
+
+
+# Create your views here.
+def ChatroomList(req):
+    return render(req, "wechat/chatroom/list.html")
+
+
+def ChatroomData(req):
+    page = int(req.GET.get("page"))
+    limit = int(req.GET.get("limit"))
+    keyword = req.GET.get("keyword")
+    if keyword:
+        chatroom_obj = Chatroom.objects.filter(nickname__contains=keyword)
+        print(chatroom_obj)
+        count = chatroom_obj.count()
+        chatroom_list = chatroom_obj.all()[(page - 1) * limit:page * limit]
+    else:
+        chatroom_obj = Chatroom.objects
+        count = chatroom_obj.count()
+        chatroom_list = chatroom_obj.all()[(page - 1) * limit:page * limit]
+    chatroom_data = []
+    for chatroom in chatroom_list:
+        chatroom_info = {
+            "id": chatroom.id,
+            "nickname": chatroom.nickname,
+            "start_time": get_strftime(chatroom.start_time),
+            "end_time": get_strftime(chatroom.end_time),
+            "remark": chatroom.remark
+        }
+        chatroom_data.append(chatroom_info)
+    Replay_list = {"data": chatroom_data, "msg": "", "code": 0, "count": count}
+    rdata = json.dumps(Replay_list)
+    return HttpResponse(rdata, content_type="application/json", )
+
+
+def ChatroomAdd(req):
+    if req.method == "GET":
+        return render(req, "wechat/chatroom/add.html")
+    else:
+        response = {"code": 200, "msg": "微信群添加成功"}
+        start_time = get_timeStamp(req.POST.get("start_time"))
+        end_time = get_timeStamp(req.POST.get("end_time"))
+        remark = req.POST.get("remark")
+        chatroom_nickname = req.POST.get("nickname")
+        if end_time - start_time <= 0:
+            response["code"] = 401
+            response["msg"] = "结束时间必须大于开始时间"
+        try:
+            Chatroom.objects.create(nickname=chatroom_nickname, start_time=start_time, end_time=end_time, remark=remark)
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "微信群已存在"
+        except Exception:
+            response["code"] = 500
+            response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def ChatroomEdit(req, id):
+    if req.method == "GET":
+        chatroom = Chatroom.objects.get(id=id)
+        chatroom.start_time = get_strftime(chatroom.start_time)
+        chatroom.end_time = get_strftime(chatroom.end_time)
+        return render(req, "wechat/chatroom/edit.html", locals())
+    else:
+        response = {"code": 200, "msg": "微信群修改成功"}
+        start_time = get_timeStamp(req.POST.get("start_time"))
+        end_time = get_timeStamp(req.POST.get("end_time"))
+        remark = req.POST.get("remark")
+        chatroom_nickname = req.POST.get("nickname")
+        if end_time - start_time <= 0:
+            response["code"] = 401
+            response["msg"] = "结束时间必须大于开始时间"
+        try:
+            Chatroom.objects.filter(id=id).update(start_time=start_time, end_time=end_time, remark=remark,
+                                                  nickname=chatroom_nickname)
+        except IntegrityError:
+            response["code"] = 400
+            response["msg"] = "微信群名称已存在"
+        except Exception:
+            response["code"] = 500
+            response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def ChatroomDel(req):
+    if req.method == "POST":
+        response = {"code": 200, "msg": "微信群删除成功"}
+        chatroom_list = json.loads(req.POST.get("id"))
+        if not isinstance(chatroom_list, list):
+            chatroom_list = [chatroom_list, ]
+        try:
+            with transaction.atomic():
+                Chatroom.objects.filter(id__in=chatroom_list).delete()
+                ReplyToChatroom.objects.filter(id__in=chatroom_list).delete()
+        except Exception as e:
+            response["code"] = 500
+            response["msg"] = "服务器出现错误"
+        return JsonResponse(response)
+
+
+def get_timeStamp(time_string):
+    timeArray = time.strptime(time_string, "%Y-%m-%d %H:%M:%S")
+    return int(time.mktime(timeArray))
+
+
+def get_strftime(timeStamp):
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timeStamp))

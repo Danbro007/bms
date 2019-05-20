@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.min.css">
+    <script src="/static/js/jquery.min.js"></script>
+    <style>
+        *{
+            margin: 0;
+            padding: 0;
+        }
+        body{
+            background-color: #428ac9;
+        }
+
+        #qrcode-box{
+            width: 270px;
+            height: 270px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #scanwechat-box{
+            margin-top: 50px;
+            width: 320px;
+            height: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            background-color: white;
+        }
+
+        #qrcode{
+            margin-top: 30px;
+            width: 270px;
+            height: 270px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        #hint{
+            margin-top: 15px;
+            width: 270px;
+            height: 270px;
+            margin-right: auto;
+            margin-left: auto;
+            text-align: center;
+        }
+        #hint span{
+            display: inline-block;
+
+        }
+        #hint1{
+            margin-top: 30px;
+            font-size: 20px;
+        }
+        #hint2{
+            color: grey;
+            font-size: 16px;
+        }
+        .hide{
+            display: none;
+        }
+        #switch-btn{
+            margin-top: 70px;
+            width: 100px;
+            height: 40px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        #switch-btn button{
+            margin-right: auto;
+            margin-left: auto;
+
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-6 col-md-offset-3">
+                <div id="scanwechat-box">
+                    <div id="qrcode-box">
+                        <img id="qrcode" src="https://login.weixin.qq.com/qrcode/{{ qcode }}">
+                    </div>
+                    <div id="hint">
+                        <span id="hint1">
+                            使用手机微信扫码登录
+                        </span>
+                        <span id="hint2">
+                            需要配合手机扫码使用
+                        </span>
+                    </div>
+                    <div id="switch-btn" class="hide">
+                        <button type="button" class="btn btn-primary" style="height:40px;width: 100px">切换账号</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    $(function () {
+        check_login()
+    });
+    function check_login() {
+       $.ajax({
+           url:"/check_login/",
+           type:"GET",
+           dataType:"JSON",
+           success:function (args) {
+               console.log(args["code"]);
+                if(args["code"] == 408){
+                    check_login()
+                }
+                else if(args["code"] == 201){
+                    $("#qrcode").attr("src",args["data"]);
+                    $("#hint").addClass("hide");
+                    $("#switch-btn").removeClass("hide");
+                    check_login()
+                }
+                else if(args["code"] == 200){
+                    location.href = "/backend/"
+                }
+           }
+       })
+    }
+
+    $("#switch-btn button").click(function () {
+        location.reload()
+    })
+
+</script>
+</html>

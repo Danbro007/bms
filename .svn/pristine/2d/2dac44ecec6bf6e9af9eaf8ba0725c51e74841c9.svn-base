@@ -1,0 +1,253 @@
+django
+	models
+		class Boy2Gril(models.Model):
+			b = models.ForeignKey(to="BOYS",to_fields="username"，related_name="boy")
+		上面的两个参数 to是外键关联的表名，to_fields是关联的字段，不设置默认关联id
+		related_name为别名，用反向查询时可以直接调用related_name的对象
+		models：
+			class Boys2Girls(models.Model):
+				b = models.ForeignKey("Boys",on_delete=None,related_name="girl")
+				g = models.ForeignKey("Girls",on_delete=None,related_name="boy")
+		views：
+			def friend(req):
+				res = Boys.objects.filter(username="shanqijie").first()
+				info = res.girl.all()
+				for item in info:
+					print(item.g.username)
+				return HttpResponse("11111111")
+				
+	ManyToManyField：
+		不需要自己再写关系表，django自动生成关系表
+		class Girls(models.Model):
+			username = models.CharField(max_length=32,null=False,default="")
+			nickname = models.CharField(max_length=32,null=False,default="")
+			age = models.IntegerField(null=False, default=1)
+			
+			b = models.ManyToManyField("Boys")#连接boys
+		
+		向关系表b添加一条男女生的关系，
+		def friend(req):
+			res = Girls.objects.filter(id=1).first()#找到id=1的女生
+			res.b.add(2)#向关系表添加id为2的男生关系
+			return HttpResponse("1111111")
+			
+		添加多个
+			res.b.add(3,4)或者res.b.add(*[3,4])
+			
+		删除
+			res.b.remove(2) 把boy_id为2的删除
+			
+		加ManyToManyField缺点：
+			语义不明确，生成的第三张表只能由有两个字段girl_id和boy_id，不能后期扩展，不推荐使用。
+			
+	解决字段冗余，boys和girls合并起来，一张表创建：
+		class UserInfo(models.Model):
+			sername = models.CharField(max_length=32, null=False, default="")
+			nickname = models.CharField(max_length=32,null=False,default="")
+			age = models.IntegerField(null=False, default=1)
+
+			gender_choice = (
+				(1, "男"),
+				(2, "女"),
+			)
+			gender = models.IntegerField(choices=gender_choice)
+			
+	ORM自关联：
+		创建外键自己关联自己
+		关系表，自己关联自己，记住要加上关联字段，related_name，为了鉴别字段
+			class U2U(models.Model):
+				b = models.ForeignKey("UserInfo",on_delete=None,related_name="girl")
+				g = models.ForeignKey("UserInfo",on_delete=None,related_name="boy")
+			views方法：
+				def friend(req):
+					res = UserInfo.objects.filter(username="shan").first()
+					info = res.girl.all()
+					print(info)#得到符合条件的对象
+					return HttpResponse("1111111")
+					
+	Fk自关联：
+		class Comment(models.Model):
+			news_id = models.IntegerField(null=False,default=0)
+			comment = models.CharField(max_length=256,null=False,default="")
+			user = models.CharField(max_length=32,null=False,default="")
+			replay_id = models.ForeignKey("Comment"，on_delete=None)#关联自己表的主键id，
+			比如bbs论坛的帖子回复，这个replay_id指向要回复的用户id
+			
+	db_index:
+		设置普通索引
+		class UserInfo(models.Model):
+			username = models.CharField(max_length=32, null=False, default="",db_index=True)
+			
+			
+	ORM里的字段：
+	
+		SmallIntegerField(IntegerField):
+			- 小整数 -32768 ～ 32767
+		PositiveSmallIntegerField(PositiveIntegerRelDbTypeMixin, IntegerField)
+			- 正小整数 0 ～ 32767
+		IntegerField(Field)
+			- 整数列(有符号的) -2147483648 ～ 2147483647
+		PositiveIntegerField(PositiveIntegerRelDbTypeMixin, IntegerField)
+			- 正整数 0 ～ 2147483647
+		BigIntegerField(IntegerField):
+			- 长整型(有符号的) -9223372036854775808 ～ 9223372036854775807
+		自定义无符号整数字段
+		BooleanField(Field)
+			- 布尔值类型
+		NullBooleanField(Field):
+			- 可以为空的布尔值
+		CharField(Field)
+			- 字符类型
+			- 必须提供max_length参数， max_length表示字符长度
+		TextField(Field)
+			- 文本类型
+		FloatField(Field)
+			- 浮点型
+		DecimalField(Field)
+			- 10进制小数
+			- 参数：
+				max_digits，小数总长度
+				decimal_places，小数位长度
+		BinaryField(Field)
+			- 二进制类型
+			
+
+			
+			
+	django admin的配置：
+		-admin.py中注册表
+			admin.site.register(models.UserInfo)
+		-url中
+			url(r'^admin/', admin.site.urls),
+		-命令行创建：
+			python manage.py createsuperuser
+		只能在django中使用：
+			EmailField(CharField)：
+			- 字符串类型，Django Admin以及ModelForm中提供验证机制
+			IPAddressField(Field)
+				- 字符串类型，Django Admin以及ModelForm中提供验证 IPV4 机制
+			GenericIPAddressField(Field)
+				- 字符串类型，Django Admin以及ModelForm中提供验证 Ipv4和Ipv6
+				- 参数：
+					protocol，用于指定Ipv4或Ipv6， 'both',"ipv4","ipv6"
+					unpack_ipv4， 如果指定为True，则输入::ffff:192.0.2.1时候，可解析为192.0.2.1，开启刺功能，需要protocol="both"
+			URLField(CharField)
+				- 字符串类型，Django Admin以及ModelForm中提供验证 URL
+			SlugField(CharField)
+				- 字符串类型，Django Admin以及ModelForm中提供验证支持 字母、数字、下划线、连接符（减号）
+			CommaSeparatedIntegerField(CharField)
+				- 字符串类型，格式必须为逗号分割的数字
+			UUIDField(Field)
+				- 字符串类型，Django Admin以及ModelForm中提供对UUID格式的验证
+			FilePathField(Field)
+				- 字符串，Django Admin以及ModelForm中提供读取文件夹下文件的功能
+				- 参数：
+						path,                      文件夹路径
+						match=None,                正则匹配
+						recursive=False,           递归下面的文件夹
+						allow_files=True,          允许文件
+						allow_folders=False,       允许文件夹
+									
+			verbose_name        Admin中显示的字段名称
+			blank               Admin中是否允许用户输入为空
+			editable            Admin中是否可以编辑
+			help_text           Admin中该字段的提示信息
+			choices             Admin中显示选择框的内容，用不变动的数据放在内存中从而避免跨表操作
+								如：gf = models.IntegerField(choices=[(0, '何穗'),(1, '大表姐'),],default=1)
+			error_messages      自定义错误信息（字典类型），从而定制想要显示的错误信息；
+								字典健：null, blank, invalid, invalid_choice, unique, and unique_for_date
+								如：{'null': "不能为空.", 'invalid': '格式错误'}
+			validators          自定义错误验证（列表类型），从而定制想要的验证规则
+								from django.core.validators import RegexValidator
+								from django.core.validators import EmailValidator,URLValidator,DecimalValidator,\
+								MaxLengthValidator,MinLengthValidator,MaxValueValidator,MinValueValidator
+								如：
+									test = models.CharField(
+										max_length=32,
+										error_messages={
+											'c1': '优先错信息1',
+											'c2': '优先错信息2',
+											'c3': '优先错信息3',
+										},
+										validators=[
+											RegexValidator(regex='root_\d+', message='错误了', code='c1'),
+											RegexValidator(regex='root_112233\d+', message='又错误了', code='c2'),
+											EmailValidator(message='又错误了', code='c3'), ]
+									)
+					
+	字段参数：
+		null                数据库中字段是否可以为空
+		default             数据库中字段的默认值
+		primary_key         数据库中字段是否为主键
+		db_index            数据库中字段是否可以建立索引
+		unique              数据库中字段是否可以建立唯一索引
+		unique_for_date     数据库中字段【日期】部分是否可以建立唯一索引
+		unique_for_month    数据库中字段【月】部分是否可以建立唯一索引
+		unique_for_year     数据库中字段【年】部分是否可以建立唯一索引
+		
+		class UserInfo(models.Model):
+			username = models.CharField(max_length=32, null=False, default="",db_index=True)
+			nickname = models.CharField(max_length=32,null=False,default="")
+			age = models.IntegerField(null=False, default=1)
+			设置联合索引
+			class Meta:
+				index_together=(
+					("username","age")
+				)#联合索引
+				unique_together = (
+					("username","age")
+				)#联合唯一索引
+		
+	安全：
+		xss：
+			跨站脚本攻击
+			web网站：js脚本
+				例如在网站留言这个<script>alert('123')</script>
+				此时再次打开网页会弹出一个对话框，这是因为alert的js脚本作用，所以要过滤js脚本
+				django默认自带转义不会让js脚本作用，加了safe后取消了对数据的转义
+				-<script>alert('123')</script> #弹出对话框
+				-<script>document.cookie</script> #获取到cookie，打开网页会得到用户的cookie，不安全
+				
+		csrf：
+			跨站请求伪造
+				方法：加随机的字符串
+						只能防止一大部分人
+				django的方法：
+				-FBV
+					全站使用csrf验证
+						-开启django.middleware.csrf.CsrfViewMiddleware
+						-开启后在form表单里添加token
+							<form action="/csrf1/" method="post">
+								{% csrf_token %}
+								<input type="text" name="username">
+								<input type="submit" value="提交">
+							</form>
+					全站使用csrf，但是局部业务不适用csrf
+						-开启django.middleware.csrf.CsrfViewMiddleware
+						-针对局部业务函数，加上如下装饰器：
+						from django.views.decorators.csrf import csrf_exempt, csrf_protect
+						@csrf_protect
+						def csrf1(request):
+							if request.method == 'GET':
+								return render(request, 'csrf1.html')
+							else:
+								username = request.POST.get('username')
+								return HttpResponse('ok')
+								
+				-CBV
+					from django.utils.decorators import method_decorator
+					@method_decorator(csrf_protect, name="get")#只能定义一个
+					@method_decorator(csrf_protect, name="post")#加两个写两次
+					class UserInfo(views):
+						def get(self,req):
+							pass
+						def post(self,req):
+							pass
+					
+					
+			
+			
+				
+								
+			
+		

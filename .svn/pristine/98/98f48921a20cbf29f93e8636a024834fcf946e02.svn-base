@@ -1,0 +1,53 @@
+import time
+
+import itchat
+from django.db.utils import IntegrityError
+from threading import Thread
+import os
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'wechat.settings'
+import django
+
+django.setup()
+from wechat_app.models import *
+
+
+@itchat.msg_register(itchat.content.TEXT, isGroupChat=True)
+def text_reply(msg):
+    try:
+        chatroom_nickname = msg["User"]["NickName"]  # 群名
+        sender_nickname = \
+            [member["NickName"] for member in msg["User"]["MemberList"] if member["UserName"] == msg["ActualUserName"]][
+                0]  # 发送人名字
+        keyword = msg.text  # 关键词
+        chatroom_obj = Chatroom.objects.filter(nickname=chatroom_nickname)
+        if chatroom_obj:
+            start_time = chatroom_obj.values("start_time").first()["start_time"]
+            end_time = chatroom_obj.values("end_time").first()["end_time"]
+            current_time = int(time.time())
+            if current_time in range(start_time, end_time):
+                reply = ReplyToChatroom.objects.filter(chatroom__nickname=chatroom_nickname,
+                                                       reply__keyword__contains=keyword).values("msg", "filepath", "reply__type").first()
+                if reply:
+                    reply_nickname = "@" + sender_nickname
+                    if reply["reply__type"] == 1:  # 文字信息
+                        itchat.send_msg(toUserName=msg["FromUserName"], msg=reply_nickname + reply["msg"])
+                    elif reply["reply__type"] == 2:  # 图片
+                        itchat.send_msg(toUserName=msg["FromUserName"], msg=reply_nickname)
+                        itchat.send_image(toUserName=msg["FromUserName"], fileDir=reply["filepath"])
+                    elif reply["reply__type"] == 3:  # 文件
+                        itchat.send_msg(toUserName=msg["FromUserName"], msg=reply_nickname + " 发送文件中，请稍等。")
+                        itchat.send_file(toUserName=msg["FromUserName"], fileDir=reply["filepath"])
+            else:
+                print("not in time")
+    except TypeError:
+        print("myuser send msg")
+
+
+def run():
+    itchat.auto_login(hotReload=True)
+    itchat.run()
+
+
+if __name__ == '__main__':
+    run()

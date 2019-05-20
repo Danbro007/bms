@@ -1,0 +1,4 @@
+import random
+
+key_list = ["b4fe33543b5146d9b0710d8b8ee456c8", "3f0110fcd79e4e97b35b3f3b95cf00b8", "a5bd6d52107e481eaf8296dea5a342b0"]
+print(random.choice(key_list))

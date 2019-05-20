@@ -1,0 +1,83 @@
+import itchat
+from django.db.utils import IntegrityError
+from threading import Thread
+import os
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'wechat.settings'
+import django
+
+django.setup()
+from wechat_app.models import *
+
+
+def wechat_init():
+    print("updating chatrooms and memebrs")
+    chatrooms = itchat.get_chatrooms(update=True)
+    MyUserName = itchat.get_friends(update=True)[0]["UserName"]
+    for chatroom in chatrooms:
+        t = Thread(target=update_chatroom, args=(chatroom, MyUserName))
+        t.start()
+
+
+def update_chatroom(chatroom, MyUserName):
+    """
+    更新群信息和群成员
+    :param chatroom:
+    :param MyUserName:
+    :return:
+    """
+    try:
+        chatroom_obj = Chatroom.objects.create(username=chatroom["UserName"],
+                                               nickname=chatroom["NickName"])
+        print("add new chatroom【%s】 to database" % chatroom["NickName"])
+    except IntegrityError:
+        chatroom_obj = Chatroom.objects.filter(nickname=chatroom["NickName"])
+        chatroom_obj.update(username=chatroom["UserName"])
+    members = itchat.update_chatroom(userName=chatroom["UserName"], detailedMember=True)
+    for member in members["MemberList"]:
+        if member["UserName"] != MyUserName:
+            try:
+                member_obj = [Member.objects.create(username=member["UserName"],
+                                                    nickname=member["NickName"],
+                                                    displayname=member["DisplayName"])]
+                print("add new member【%s】 to database" % member["NickName"])
+            except IntegrityError:
+                member_obj = Member.objects.filter(nickname=member["NickName"])
+                member_obj.update(username=member["UserName"], displayname=member["DisplayName"])
+            try:
+                MemberToChatroom.objects.create(member=member_obj[0], chatroom=chatroom_obj[0])
+                print("add add member【%s】 to chartoom【%s】" % (member["NickName"], chatroom["NickName"]))
+            except IntegrityError:
+                pass
+
+
+
+@itchat.msg_register(itchat.content.TEXT, isGroupChat=True)
+def text_reply(msg):
+    chatroom = Chatroom.objects.filter(username=msg["FromUserName"]).values("username", "nickname", "id").first()
+    FromUser = MemberToChatroom.objects.filter(chatroom__username=msg["FromUserName"],
+                                               member__username=msg["ActualUserName"]).values("member__username",
+                                                                                              "member__nickname").first()
+    print("来自群【%s】成员【%s】的消息" % (chatroom["nickname"], FromUser["member__nickname"]))
+    if chatroom["nickname"] == "超级客服群":
+        reply_msg = ReplyMsg.objects.filter(keyword__contains=msg.text).values("type", "msg", "file_path").first()
+        if reply_msg:
+            if reply_msg["type"] == 1:
+                itchat.send_msg(toUserName=chatroom["username"],
+                                msg="@" + FromUser["member__nickname"] + " " + reply_msg["msg"])
+            else:
+                itchat.send_file(reply_msg["file_path"], toUserName=chatroom["username"])
+                itchat.send_msg(toUserName=chatroom["username"],
+                                msg="@" + FromUser["member__nickname"])
+        else:
+            itchat.send_msg(toUserName=chatroom["username"], msg="@" + FromUser["member__nickname"] + " " + "我没明白你的意思")
+
+
+def run():
+    itchat.auto_login(hotReload=True)
+    wechat_init()
+    itchat.run()
+
+
+if __name__ == '__main__':
+    run()
